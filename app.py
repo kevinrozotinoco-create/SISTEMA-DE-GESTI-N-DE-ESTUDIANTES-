@@ -446,17 +446,16 @@ with tab_nuevo:
 
 
 
-            # Suponiendo que 'imagenes' es la lista con las imágenes de la secuencia seleccionada
-num_cortes = len(imagenes)
+            # --- Navegación por cortes al final del archivo ---
+if 'imagenes' in locals() and len(imagenes) > 0:
+    num_cortes = len(imagenes)
 
-if num_cortes > 1:
-    # Crea el deslizador interactivo para cambiar de corte
-    corte_index = st.slider("Seleccionar corte:", min_value=1, max_value=num_cortes, value=1) - 1
+    if num_cortes > 1:
+        corte_index = st.slider("Seleccionar corte:", min_value=1, max_value=num_cortes, value=1) - 1
+    else:
+        corte_index = 0
+
+    st.markdown(f"📍 **Corte actual:** {corte_index + 1} de {num_cortes}")
+    st.image(imagenes[corte_index], use_column_width=True)
 else:
-    corte_index = 0
-
-st.markdown(f"📍 **Corte actual:** {corte_index + 1} de {num_cortes}")
-
-# Mostrar la imagen correspondiente al corte seleccionado
-st.image(imagenes[corte_index], use_column_width=True)
-
+    st.info("No hay imágenes cargadas en esta secuencia actualmente.")
