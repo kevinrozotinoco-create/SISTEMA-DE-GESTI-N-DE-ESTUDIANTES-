@@ -1,0 +1,94 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    html, body { margin: 0; padding: 0; background: transparent; font-family: sans-serif; }
+    .wrap { width: 100%; padding: 2px 0 4px; box-sizing: border-box; color: var(--text, #31333f); }
+    .label { font-size: 14px; margin: 0 0 8px; font-weight: 500; color: #ffffff; }
+    .range-row { display: flex; align-items: center; gap: 10px; }
+    input[type=range] { flex: 1; min-width: 0; accent-color: #ff4b4b; cursor: pointer; }
+    .count { font-size: 12px; min-width: 66px; text-align: right; color: #dddddd; font-weight: bold; }
+    .actions { display: flex; align-items: center; gap: 8px; margin-top: 7px; }
+    button { border: 1px solid rgba(255,255,255,.3); border-radius: 6px; padding: 4px 10px; background: rgba(0,0,0,0.3); color: #ffffff; cursor: pointer; font-size: 12px; }
+    button:hover { border-color: #ff4b4b; background: rgba(255,75,75,0.2); }
+    .hint { font-size: 11px; color: #aaaaaa; margin-left: auto; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="label">Desplazarse por la secuencia del TAC / RM:</div>
+    <div class="range-row">
+      <input id="slice" type="range" min="0" max="0" step="1" value="0" aria-label="Corte de la secuencia">
+      <span class="count" id="count">1 / 1</span>
+    </div>
+    <div class="actions">
+      <button id="play" type="button">▶ Reproducir</button>
+      <button id="pause" type="button">❚❚ Pausar</button>
+      <span class="hint">Arrastra la barra o gira la rueda del ratón</span>
+    </div>
+  </div>
+<script>
+(() => {
+  const slider = document.getElementById('slice');
+  const count = document.getElementById('count');
+  const play = document.getElementById('play');
+  const pause = document.getElementById('pause');
+  let total = 1;
+  let current = 0;
+  let timer = null;
+  let lastSent = -1;
+
+  function send(value) {
+    current = Math.max(0, Math.min(total - 1, Number(value) || 0));
+    slider.value = String(current);
+    count.textContent = `${current + 1} / ${total}`;
+    if (current !== lastSent) {
+      lastSent = current;
+      window.parent.postMessage({
+        type: 'streamlit:setComponentValue',
+        value: current,
+        dataType: 'json'
+      }, '*');
+    }
+  }
+
+  slider.addEventListener('input', () => send(slider.value));
+  slider.addEventListener('wheel', (event) => {
+    event.preventDefault();
+    const direction = Math.sign(event.deltaY);
+    if (direction) send(current + direction);
+  }, { passive: false });
+
+  play.addEventListener('click', () => {
+    if (timer) return;
+    timer = window.setInterval(() => {
+      if (current >= total - 1) send(0);
+      else send(current + 1);
+    }, 120);
+  });
+  pause.addEventListener('click', () => {
+    if (timer) window.clearInterval(timer);
+    timer = null;
+  });
+
+  window.addEventListener('message', (event) => {
+    const msg = event.data;
+    if (!msg || msg.type !== 'streamlit:render') return;
+    const args = msg.args || {};
+    total = Math.max(1, Number(args.total) || 1);
+    slider.max = String(total - 1);
+    const requested = Number(args.initial_value) || 0;
+    if (lastSent < 0) current = Math.max(0, Math.min(total - 1, requested));
+    else current = Math.max(0, Math.min(total - 1, current));
+    slider.value = String(current);
+    count.textContent = `${current + 1} / ${total}`;
+  });
+
+  window.parent.postMessage({ type: 'streamlit:componentReady', apiVersion: '1.0.0' }, '*');
+  window.parent.postMessage({ type: 'streamlit:setFrameHeight', height: 83 }, '*');
+})();
+</script>
+</body>
+</html>
