@@ -224,6 +224,63 @@ with tab_buscar:
                 st.write(f"**Motivo Consulta:** {p['motivo']}")
                 st.write(f"**Diagnóstico Presuntivo:** {p['diagnostico']}")
                 
+                # --- BOTÓN DE DESCARGA RÁPIDA DE EXCEL EN CUALQUIER MOMENTO ---
+                st.divider()
+                st.subheader("📥 Ficha del Paciente")
+                if os.path.exists(p['archivo']):
+                    with open(p['archivo'], "rb") as f_excel:
+                        nombre_archivo_excel = os.path.basename(p['archivo'])
+                        st.download_button(
+                            label="📥 Descargar Ficha Excel Actual",
+                            data=f_excel,
+                            file_name=nombre_archivo_excel,
+                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                            use_container_width=True
+                        )
+                
+                # --- MÓDULO DE EDICIÓN Y AGREGAR IMÁGENES / DATOS ---
+                with st.expander("✏️ Editar Paciente / Agregar Imágenes"):
+                    with st.form(f"form_editar_{cedula_final}"):
+                        nuevo_estado = st.selectbox("Modificar Estado del Estudio:", ["Realizado", "Pendiente", "En proceso"], index=["Realizado", "Pendiente", "En proceso"].index(p['estado']) if p['estado'] in ["Realizado", "Pendiente", "En proceso"] else 0)
+                        nuevo_diagnostico = st.text_input("Actualizar Diagnóstico Presuntivo:", value=p['diagnostico'])
+                        
+                        st.markdown("---")
+                        st.write("📁 **Agregar más imágenes/cortes adicionales:**")
+                        nombre_nueva_sec = st.text_input("Nombre de la nueva secuencia (Ej: Control Post-operatorio):", value="Secuencia Adicional")
+                        nuevas_imgs = st.file_uploader("Subir cortes nuevos (JPG/PNG):", type=["jpg", "jpeg", "png"], accept_multiple_files=True)
+                        
+                        btn_guardar_cambios = st.form_submit_button("💾 Guardar Cambios")
+                        
+                        if btn_guardar_cambios:
+                            # Actualizar el archivo Excel existente
+                            df_existente = pd.read_excel(p['archivo'], header=None)
+                            
+                            # Modificar valores en el DataFrame
+                            for idx, row in df_existente.iterrows():
+                                k_val = str(row[0]).strip().lower()
+                                if k_val == "estado del estudio":
+                                    df_existente.at[idx, 1] = nuevo_estado
+                                elif k_val == "diagnóstico presuntivo":
+                                    df_existente.at[idx, 1] = nuevo_diagnostico
+                                    
+                            df_existente.to_excel(p['archivo'], index=False, header=False)
+                            
+                            # Guardar nuevas imágenes si se subieron
+                            if nuevas_imgs:
+                                dir_estudio = os.path.join(CARPETA_DATOS, f"estudio_{cedula_final}")
+                                dir_nueva_sec = os.path.join(dir_estudio, nombre_nueva_sec.strip())
+                                os.makedirs(dir_nueva_sec, exist_ok=True)
+                                
+                                for idx_img, img_f in enumerate(nuevas_imgs):
+                                    ext = os.path.splitext(img_f.name)[1]
+                                    path_dest = os.path.join(dir_nueva_sec, f"corte_{idx_img+1}{ext}")
+                                    with open(path_dest, "wb") as f_img:
+                                        f_img.write(img_f.getbuffer())
+                                        
+                            st.success("¡Información e imágenes actualizadas con éxito!")
+                            st.cache_data.clear()
+                            st.rerun()
+
                 st.divider()
                 st.subheader("⚙️ Herramientas PACS")
                 brillo = st.slider("Brillo", 0.2, 3.0, 1.0, 0.1)
@@ -352,7 +409,7 @@ with tab_nuevo:
         st.subheader("🧠 Carga de Imágenes por Secuencias / Ventanas (Ej. TAC de Cráneo)")
         st.write("Puedes subir diferentes fases o ventanas del estudio médico por separado:")
         
-        secuencia_1_nombre = st.text_input("Nombre de la Secuencia 1 (Ej: Ventana Parenquimatosa / Simple)", value="Ventana ParenquIMatosa")
+        secuencia_1_nombre = st.text_input("Nombre de la Secuencia 1 (Ej: Ventana Parenquimatosa / Simple)", value="Ventana Parenquimatosa")
         archivos_sec_1 = st.file_uploader("Cortes de la Secuencia 1 (JPG / PNG)", type=["jpg", "jpeg", "png"], accept_multiple_files=True, key="sec1")
         
         st.markdown("---")
@@ -443,86 +500,4 @@ with tab_nuevo:
                 )
 
             st.cache_data.clear()
-
-
-
-            # --- Navegación por cortes al final del archivo ---
-if 'imagenes' in locals() and len(imagenes) > 0:
-    num_cortes = len(imagenes)
-
-    if num_cortes > 1:
-        corte_index = st.slider("Seleccionar corte:", min_value=1, max_value=num_cortes, value=1) - 1
-    else:
-        corte_index = 0
-
-    st.markdown(f"📍 **Corte actual:** {corte_index + 1} de {num_cortes}")
-    st.image(imagenes[corte_index], use_column_width=True)
-else:
-    st.info("No hay imágenes cargadas en esta secuencia actualmente.")
-
-
-import streamlit as st
-
-st.subheader("📁 Visor de Múltiples Imágenes (Secuencia)")
-
-# Permite subir muchas imágenes a la vez (puedes seleccionar hasta 100 o más)
-imagenes_subidas = st.file_uploader(
-    "Sube tus imágenes de la secuencia", 
-    type=["jpg", "jpeg", "png"], 
-    accept_multiple_files=True
-)
-
-if imagenes_subidas:
-    total_imagenes = len(imagenes_subidas)
-    st.success(f"¡Se han cargado {total_imagenes} imágenes exitosamente!")
-
-    # Si hay más de una imagen, mostramos el slider selector
-    if total_imagenes > 1:
-        indice_seleccionado = st.slider(
-            "Seleccionar número de imagen:", 
-            min_value=1, 
-            max_value=total_imagenes, 
-            value=1
-        ) - 1
-    else:
-        indice_seleccionado = 0
-
-    # Muestra el indicador de corte/imagen actual
-    st.markdown(f"📍 **Imagen actual:** {indice_seleccionado + 1} de {total_imagenes}")
-    
-    # Muestra la imagen seleccionada en pantalla
-    st.image(imagenes_subidas[indice_seleccionado], use_column_width=True)
-else:
-    st.info("Por favor, sube las imágenes de la secuencia para comenzar.")
-
-    import os
-import streamlit as st
-
-st.subheader("📊 Historial y Descarga de Reportes de Pacientes")
-
-# Carpeta donde guardas o generas los excels de los pacientes
-CARPETA_PACIENTES = "pacientes_datos" # O la ruta donde guardes tus archivos
-
-# Creamos la carpeta si no existe
-if not os.path.exists(CARPETA_PACIENTES):
-    os.makedirs(CARPETA_PACIENTES)
-
-# Buscamos los archivos Excel existentes en esa carpeta
-archivos_excel = [f for f in os.listdir(CARPETA_PACIENTES) if f.endswith(".xlsx")]
-
-if archivos_excel:
-    st.write("Selecciona un paciente guardado para descargar su reporte:")
-    paciente_elegido = st.selectbox("Pacientes registrados:", archivos_excel)
-    
-    ruta_archivo = os.path.join(CARPETA_PACIENTES, paciente_elegido)
-    
-    with open(ruta_archivo, "rb") as archivo:
-        st.download_button(
-            label=f"📥 Descargar Excel de {paciente_elegido}",
-            data=archivo,
-            file_name=paciente_elegido,
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        )
-else:
-    st.info("No hay reportes de pacientes guardados todavía. Al crear uno nuevo, aparecerá aquí automáticamente para futuras descargas.")
-    
+            
