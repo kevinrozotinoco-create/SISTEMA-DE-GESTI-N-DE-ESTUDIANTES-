@@ -459,3 +459,70 @@ if 'imagenes' in locals() and len(imagenes) > 0:
     st.image(imagenes[corte_index], use_column_width=True)
 else:
     st.info("No hay imágenes cargadas en esta secuencia actualmente.")
+
+
+import streamlit as st
+
+st.subheader("📁 Visor de Múltiples Imágenes (Secuencia)")
+
+# Permite subir muchas imágenes a la vez (puedes seleccionar hasta 100 o más)
+imagenes_subidas = st.file_uploader(
+    "Sube tus imágenes de la secuencia", 
+    type=["jpg", "jpeg", "png"], 
+    accept_multiple_files=True
+)
+
+if imagenes_subidas:
+    total_imagenes = len(imagenes_subidas)
+    st.success(f"¡Se han cargado {total_imagenes} imágenes exitosamente!")
+
+    # Si hay más de una imagen, mostramos el slider selector
+    if total_imagenes > 1:
+        indice_seleccionado = st.slider(
+            "Seleccionar número de imagen:", 
+            min_value=1, 
+            max_value=total_imagenes, 
+            value=1
+        ) - 1
+    else:
+        indice_seleccionado = 0
+
+    # Muestra el indicador de corte/imagen actual
+    st.markdown(f"📍 **Imagen actual:** {indice_seleccionado + 1} de {total_imagenes}")
+    
+    # Muestra la imagen seleccionada en pantalla
+    st.image(imagenes_subidas[indice_seleccionado], use_column_width=True)
+else:
+    st.info("Por favor, sube las imágenes de la secuencia para comenzar.")
+
+    import os
+import streamlit as st
+
+st.subheader("📊 Historial y Descarga de Reportes de Pacientes")
+
+# Carpeta donde guardas o generas los excels de los pacientes
+CARPETA_PACIENTES = "pacientes_datos" # O la ruta donde guardes tus archivos
+
+# Creamos la carpeta si no existe
+if not os.path.exists(CARPETA_PACIENTES):
+    os.makedirs(CARPETA_PACIENTES)
+
+# Buscamos los archivos Excel existentes en esa carpeta
+archivos_excel = [f for f in os.listdir(CARPETA_PACIENTES) if f.endswith(".xlsx")]
+
+if archivos_excel:
+    st.write("Selecciona un paciente guardado para descargar su reporte:")
+    paciente_elegido = st.selectbox("Pacientes registrados:", archivos_excel)
+    
+    ruta_archivo = os.path.join(CARPETA_PACIENTES, paciente_elegido)
+    
+    with open(ruta_archivo, "rb") as archivo:
+        st.download_button(
+            label=f"📥 Descargar Excel de {paciente_elegido}",
+            data=archivo,
+            file_name=paciente_elegido,
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+else:
+    st.info("No hay reportes de pacientes guardados todavía. Al crear uno nuevo, aparecerá aquí automáticamente para futuras descargas.")
+    
