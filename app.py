@@ -15,15 +15,6 @@ st.set_page_config(
 
 CARPETA_DATOS = "."
 
-# Componente adicional del visor: control por arrastre, rueda del ratón y reproducción.
-parent_dir = os.path.abspath(os.path.dirname(__file__))
-component_dir = os.path.join(parent_dir, "cine_scroll_component")
-
-cine_scroll = components.declare_component(
-    "cine_scroll",
-    path=component_dir
-)
-
 # ==============================================================================
 # 🔐 MÓDULO DE AUTENTICACIÓN Y SEGURIDAD
 # ==============================================================================
@@ -188,7 +179,7 @@ tab_buscar, tab_nuevo = st.tabs(["🔍 Consultar Paciente y Visor PACS", "➕ Re
 pacientes = cargar_todos_los_pacientes(CARPETA_DATOS)
 
 # ==============================================================================
-# --- PESTAÑA 1: VISOR PACS MULTISECUENCIA Y CONSULTA CLÍNICA ---
+# --- PESTAÑA 1: CONSULTA CLÍNICA Y VISOR DE IMÁGENES LIBRE ---
 # ==============================================================================
 with tab_buscar:
     st.sidebar.header("📋 Historias Registradas")
@@ -214,6 +205,7 @@ with tab_buscar:
             p = pacientes[cedula_final]
             st.success(f"**Paciente:** {p['nombre']} | **Cédula:** {cedula_final} | **Modalidad:** {p['modalidad']} | **Estudio:** {p['estudio']}")
             
+            # Definición correcta de columnas para evitar NameError
             col_info, col_visor = st.columns([1, 2])
             
             with col_info:
@@ -224,7 +216,7 @@ with tab_buscar:
                 st.write(f"**Motivo Consulta:** {p['motivo']}")
                 st.write(f"**Diagnóstico Presuntivo:** {p['diagnostico']}")
                 
-                # --- BOTÓN DE DESCARGA RÁPIDA DE EXCEL EN CUALQUIER MOMENTO ---
+                # --- BOTÓN DE DESCARGA RÁPIDA DE EXCEL ---
                 st.divider()
                 st.subheader("📥 Ficha del Paciente")
                 if os.path.exists(p['archivo']):
@@ -238,24 +230,20 @@ with tab_buscar:
                             use_container_width=True
                         )
                 
-                # --- MÓDULO DE EDICIÓN Y AGREGAR IMÁGENES / DATOS ---
+                # --- MÓDULO DE EDICIÓN Y AGREGAR IMÁGENES ---
                 with st.expander("✏️ Editar Paciente / Agregar Imágenes"):
                     with st.form(f"form_editar_{cedula_final}"):
                         nuevo_estado = st.selectbox("Modificar Estado del Estudio:", ["Realizado", "Pendiente", "En proceso"], index=["Realizado", "Pendiente", "En proceso"].index(p['estado']) if p['estado'] in ["Realizado", "Pendiente", "En proceso"] else 0)
                         nuevo_diagnostico = st.text_input("Actualizar Diagnóstico Presuntivo:", value=p['diagnostico'])
                         
                         st.markdown("---")
-                        st.write("📁 **Agregar más imágenes/cortes adicionales:**")
-                        nombre_nueva_sec = st.text_input("Nombre de la nueva secuencia (Ej: Control Post-operatorio):", value="Secuencia Adicional")
-                        nuevas_imgs = st.file_uploader("Subir cortes nuevos (JPG/PNG):", type=["jpg", "jpeg", "png"], accept_multiple_files=True)
+                        st.write("📁 **Agregar más imágenes adicionales al paciente:**")
+                        nuevas_imgs = st.file_uploader("Subir imágenes nuevas (JPG/PNG):", type=["jpg", "jpeg", "png"], accept_multiple_files=True)
                         
                         btn_guardar_cambios = st.form_submit_button("💾 Guardar Cambios")
                         
                         if btn_guardar_cambios:
-                            # Actualizar el archivo Excel existente
                             df_existente = pd.read_excel(p['archivo'], header=None)
-                            
-                            # Modificar valores en el DataFrame
                             for idx, row in df_existente.iterrows():
                                 k_val = str(row[0]).strip().lower()
                                 if k_val == "estado del estudio":
@@ -265,15 +253,12 @@ with tab_buscar:
                                     
                             df_existente.to_excel(p['archivo'], index=False, header=False)
                             
-                            # Guardar nuevas imágenes si se subieron
                             if nuevas_imgs:
                                 dir_estudio = os.path.join(CARPETA_DATOS, f"estudio_{cedula_final}")
-                                dir_nueva_sec = os.path.join(dir_estudio, nombre_nueva_sec.strip())
-                                os.makedirs(dir_nueva_sec, exist_ok=True)
-                                
+                                os.makedirs(dir_estudio, exist_ok=True)
                                 for idx_img, img_f in enumerate(nuevas_imgs):
                                     ext = os.path.splitext(img_f.name)[1]
-                                    path_dest = os.path.join(dir_nueva_sec, f"corte_{idx_img+1}{ext}")
+                                    path_dest = os.path.join(dir_estudio, f"imagen_adicional_{idx_img+1}{ext}")
                                     with open(path_dest, "wb") as f_img:
                                         f_img.write(img_f.getbuffer())
                                         
@@ -282,7 +267,7 @@ with tab_buscar:
                             st.rerun()
 
                 st.divider()
-                st.subheader("⚙️ Herramientas PACS")
+                st.subheader("⚙️ Herramientas de Visualización")
                 brillo = st.slider("Brillo", 0.2, 3.0, 1.0, 0.1)
                 contraste = st.slider("Contraste", 0.2, 3.0, 1.0, 0.1)
                 invertir = st.checkbox("Invertir Colores (Negativo Radiológico)")
@@ -301,20 +286,18 @@ with tab_buscar:
                     st.cache_data.clear()
                     st.rerun()
                 
-with col_visor:
+            with col_visor:
                 st.subheader("🖼️ Visor de Imágenes del Paciente")
                 
                 carpeta_estudio = os.path.join(CARPETA_DATOS, f"estudio_{p['id']}")
                 todas_las_imagenes = []
                 
-                # Recopilar absolutamente todas las imágenes dentro de la carpeta del paciente sin importar subcarpetas
                 if os.path.exists(carpeta_estudio) and os.path.isdir(carpeta_estudio):
                     for root, dirs, files in os.walk(carpeta_estudio):
                         for file in files:
                             if file.lower().endswith((".jpg", ".jpeg", ".png", ".bmp")):
                                 todas_las_imagenes.append(os.path.join(root, file))
                 
-                # Si no hay archivos en la carpeta, buscar el soporte principal
                 if not todas_las_imagenes:
                     ruta_principal = os.path.join(CARPETA_DATOS, p["ruta_imagen"])
                     if os.path.exists(ruta_principal) and os.path.isfile(ruta_principal):
@@ -324,7 +307,6 @@ with col_visor:
                     todas_las_imagenes = sorted(todas_las_imagenes)
                     nombres_archivos = [os.path.basename(path) for path in todas_las_imagenes]
                     
-                    # Selector limpio y directo de imágenes (sin secuencias ni recuadros de cortes)
                     img_elegida_nombre = st.selectbox("📂 Seleccione la imagen que desea visualizar:", nombres_archivos)
                     img_sel_path = todas_las_imagenes[nombres_archivos.index(img_elegida_nombre)]
 
@@ -351,11 +333,11 @@ with col_visor:
                     st.warning(f"⚠️ No hay imágenes cargadas para el paciente: {p['nombre']}")
                     
 # ==============================================================================
-# --- PESTAÑA 2: FORMULARIO DE REGISTRO MULTI-SECUENCIA Y TAC ---
+# --- PESTAÑA 2: FORMULARIO DE REGISTRO ---
 # ==============================================================================
 with tab_nuevo:
-    st.header("📝 Formulario de Registro Clínico RIS y TAC Multi-Secuencia")
-    st.write("Diligencie los datos y cargue las imágenes organizadas por secuencias o ventanas radiológicas.")
+    st.header("📝 Formulario de Registro Clínico")
+    st.write("Diligencie los datos y cargue las imágenes del estudio médico.")
 
     with st.form("form_nuevo_paciente", clear_on_submit=False):
         col1, col2 = st.columns(2)
@@ -380,17 +362,10 @@ with tab_nuevo:
             estado = st.selectbox("Estado del Estudio", ["Realizado", "Pendiente", "En proceso"])
 
         st.divider()
-        st.subheader("🧠 Carga de Imágenes por Secuencias / Ventanas (Ej. TAC de Cráneo)")
-        st.write("Puedes subir diferentes fases o ventanas del estudio médico por separado:")
-        
-        secuencia_1_nombre = st.text_input("Nombre de la Secuencia 1 (Ej: Ventana Parenquimatosa / Simple)", value="Ventana Parenquimatosa")
-        archivos_sec_1 = st.file_uploader("Cortes de la Secuencia 1 (JPG / PNG)", type=["jpg", "jpeg", "png"], accept_multiple_files=True, key="sec1")
-        
-        st.markdown("---")
-        secuencia_2_nombre = st.text_input("Nombre de la Secuencia 2 (Opcional - Ej: Ventana Ósea / Contrastada)", value="Ventana Ósea")
-        archivos_sec_2 = st.file_uploader("Cortes de la Secuencia 2 (Opcional)", type=["jpg", "jpeg", "png"], accept_multiple_files=True, key="sec2")
+        st.subheader("🧠 Carga de Imágenes del Paciente")
+        archivos_imagenes = st.file_uploader("Seleccione las imágenes (puede elegir varias a la vez)", type=["jpg", "jpeg", "png"], accept_multiple_files=True)
 
-        boton_guardar = st.form_submit_button("💾 Guardar Estudio Multi-Secuencia en el Sistema")
+        boton_guardar = st.form_submit_button("💾 Guardar Paciente en el Sistema")
 
     if boton_guardar:
         if not id_paciente or not p_nombre or not p_apellido:
@@ -402,29 +377,15 @@ with tab_nuevo:
             
             primer_archivo_global = None
 
-            if archivos_sec_1 and secuencia_1_nombre:
-                dir_sec1 = os.path.join(dir_estudio, secuencia_1_nombre.strip())
-                os.makedirs(dir_sec1, exist_ok=True)
-                for idx, img_file in enumerate(archivos_sec_1):
+            if archivos_imagenes:
+                for idx, img_file in enumerate(archivos_imagenes):
                     ext = os.path.splitext(img_file.name)[1]
-                    filename = f"corte_{idx+1}{ext}"
-                    path_dest = os.path.join(dir_sec1, filename)
+                    filename = f"imagen_{idx+1}{ext}"
+                    path_dest = os.path.join(dir_estudio, filename)
                     with open(path_dest, "wb") as f:
                         f.write(img_file.getbuffer())
                     if not primer_archivo_global:
-                        primer_archivo_global = os.path.join(secuencia_1_nombre.strip(), filename)
-
-            if archivos_sec_2 and secuencia_2_nombre:
-                dir_sec2 = os.path.join(dir_estudio, secuencia_2_nombre.strip())
-                os.makedirs(dir_sec2, exist_ok=True)
-                for idx, img_file in enumerate(archivos_sec_2):
-                    ext = os.path.splitext(img_file.name)[1]
-                    filename = f"corte_{idx+1}{ext}"
-                    path_dest = os.path.join(dir_sec2, filename)
-                    with open(path_dest, "wb") as f:
-                        f.write(img_file.getbuffer())
-                    if not primer_archivo_global:
-                        primer_archivo_global = os.path.join(secuencia_2_nombre.strip(), filename)
+                        primer_archivo_global = filename
 
             if primer_archivo_global:
                 nombre_imagen_soporte = primer_archivo_global
@@ -463,7 +424,7 @@ with tab_nuevo:
             path_excel = os.path.join(CARPETA_DATOS, nombre_excel)
             df_nuevo.to_excel(path_excel, index=False, header=False)
 
-            st.success(f"✅ ¡Estudio de TAC multi-secuencia para {p_nombre} {p_apellido} registrado correctamente!")
+            st.success(f"✅ ¡Estudio para {p_nombre} {p_apellido} registrado correctamente!")
             
             with open(path_excel, "rb") as file_excel:
                 st.download_button(
@@ -474,3 +435,4 @@ with tab_nuevo:
                 )
 
             st.cache_data.clear()
+            
