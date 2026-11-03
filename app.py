@@ -301,58 +301,32 @@ with tab_buscar:
                     st.cache_data.clear()
                     st.rerun()
                 
-            with col_visor:
-                st.subheader("🖼️ Visor de Imágenes Clínicas PACS (Multi-Secuencia)")
+with col_visor:
+                st.subheader("🖼️ Visor de Imágenes del Paciente")
                 
                 carpeta_estudio = os.path.join(CARPETA_DATOS, f"estudio_{p['id']}")
-                secuencias_disponibles = {}
+                todas_las_imagenes = []
                 
+                # Recopilar absolutamente todas las imágenes dentro de la carpeta del paciente sin importar subcarpetas
                 if os.path.exists(carpeta_estudio) and os.path.isdir(carpeta_estudio):
-                    elementos = os.listdir(carpeta_estudio)
-                    for elem in elementos:
-                        path_elem = os.path.join(carpeta_estudio, elem)
-                        if os.path.isdir(path_elem):
-                            imgs_sec = []
-                            for ext in ["*.jpeg", "*.jpg", "*.png", "*.bmp"]:
-                                imgs_sec.extend(glob.glob(os.path.join(path_elem, ext)))
-                            if imgs_sec:
-                                secuencias_disponibles[elem] = sorted(imgs_sec)
-                    
-                    if not secuencias_disponibles:
-                        imgs_sueltas = []
-                        for ext in ["*.jpeg", "*.jpg", "*.png", "*.bmp"]:
-                            imgs_sueltas.extend(glob.glob(os.path.join(carpeta_estudio, ext)))
-                        if imgs_sueltas:
-                            secuencias_disponibles["Estudio General / Único"] = sorted(imgs_sueltas)
-
-                if not secuencias_disponibles:
+                    for root, dirs, files in os.walk(carpeta_estudio):
+                        for file in files:
+                            if file.lower().endswith((".jpg", ".jpeg", ".png", ".bmp")):
+                                todas_las_imagenes.append(os.path.join(root, file))
+                
+                # Si no hay archivos en la carpeta, buscar el soporte principal
+                if not todas_las_imagenes:
                     ruta_principal = os.path.join(CARPETA_DATOS, p["ruta_imagen"])
                     if os.path.exists(ruta_principal) and os.path.isfile(ruta_principal):
-                        secuencias_disponibles["Soporte Principal"] = [ruta_principal]
+                        todas_las_imagenes.append(ruta_principal)
 
-                if secuencias_disponibles:
-                    nombres_secuencias = list(secuencias_disponibles.keys())
-                    secuencia_seleccionada = st.selectbox("📂 Seleccionar Secuencia / Ventana Radiológica:", nombres_secuencias)
+                if todas_las_imagenes:
+                    todas_las_imagenes = sorted(todas_las_imagenes)
+                    nombres_archivos = [os.path.basename(path) for path in todas_las_imagenes]
                     
-                    lista_imagenes = secuencias_disponibles[secuencia_seleccionada]
-                    total_cortes = len(lista_imagenes)
-                    
-                    if total_cortes > 1:
-                        st.info(f"🎞️ **Secuencia '{secuencia_seleccionada}':** {total_cortes} cortes en secuencia cargados.")
-                        
-                        # --- NAVEGACIÓN DE SECUENCIA: ARRASTRE, RUEDA Y REPRODUCCIÓN ---
-                        idx_img = cine_scroll(
-                            total=total_cortes,
-                            initial_value=0,
-                            key=f"cine_{p['id']}_{secuencia_seleccionada}",
-                            default=0
-                        )
-                        idx_img = max(0, min(int(idx_img), total_cortes - 1))
-                        
-                        img_sel_path = lista_imagenes[idx_img]
-                        st.caption(f"📍 Corte actual: **{idx_img + 1}** de {total_cortes}")
-                    else:
-                        img_sel_path = lista_imagenes[0]
+                    # Selector limpio y directo de imágenes (sin secuencias ni recuadros de cortes)
+                    img_elegida_nombre = st.selectbox("📂 Seleccione la imagen que desea visualizar:", nombres_archivos)
+                    img_sel_path = todas_las_imagenes[nombres_archivos.index(img_elegida_nombre)]
 
                     img = Image.open(img_sel_path)
                     
@@ -372,9 +346,9 @@ with tab_buscar:
                     img = ImageEnhance.Brightness(img).enhance(brillo)
                     img = ImageEnhance.Contrast(img).enhance(contraste)
                     
-                    st.image(img, width=ancho, caption=f"Secuencia: [{secuencia_seleccionada}] — Archivo: {os.path.basename(img_sel_path)}")
+                    st.image(img, width=ancho, caption=f"Imagen seleccionada: {img_elegida_nombre}")
                 else:
-                    st.warning(f"⚠️ Soporte no disponible o estudio pendiente para el paciente: {p['nombre']}")
+                    st.warning(f"⚠️ No hay imágenes cargadas para el paciente: {p['nombre']}")
                     
 # ==============================================================================
 # --- PESTAÑA 2: FORMULARIO DE REGISTRO MULTI-SECUENCIA Y TAC ---
@@ -500,4 +474,3 @@ with tab_nuevo:
                 )
 
             st.cache_data.clear()
-            
