@@ -443,3 +443,20 @@ with tab_nuevo:
                 )
 
             st.cache_data.clear()
+
+
+
+            # Suponiendo que 'imagenes' es la lista con las imágenes de la secuencia seleccionada
+num_cortes = len(imagenes)
+
+if num_cortes > 1:
+    # Crea el deslizador interactivo para cambiar de corte
+    corte_index = st.slider("Seleccionar corte:", min_value=1, max_value=num_cortes, value=1) - 1
+else:
+    corte_index = 0
+
+st.markdown(f"📍 **Corte actual:** {corte_index + 1} de {num_cortes}")
+
+# Mostrar la imagen correspondiente al corte seleccionado
+st.image(imagenes[corte_index], use_column_width=True)
+
