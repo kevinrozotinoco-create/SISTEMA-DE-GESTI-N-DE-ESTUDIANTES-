@@ -172,8 +172,6 @@ with st.sidebar:
         st.rerun()
     st.divider()
 
-st.title("Visualizador DSA")
-
 tab_buscar, tab_nuevo = st.tabs(["🔍 Consultar Paciente y Visor PACS", "➕ Registrar Nuevo Paciente"])
 
 pacientes = cargar_todos_los_pacientes(CARPETA_DATOS)
@@ -205,7 +203,6 @@ with tab_buscar:
             p = pacientes[cedula_final]
             st.success(f"**Paciente:** {p['nombre']} | **Cédula:** {cedula_final} | **Modalidad:** {p['modalidad']} | **Estudio:** {p['estudio']}")
             
-            # Definición correcta de columnas para evitar NameError
             col_info, col_visor = st.columns([1, 2])
             
             with col_info:
@@ -230,16 +227,35 @@ with tab_buscar:
                             use_container_width=True
                         )
                 
-                # --- MÓDULO DE EDICIÓN Y AGREGAR IMÁGENES ---
-                with st.expander("✏️ Editar Paciente / Agregar Imágenes"):
+                # --- MÓDULO DE EDICIÓN, AGREGAR Y ELIMINAR IMÁGENES ---
+                with st.expander("✏️ Editar Paciente / Gestionar Imágenes"):
                     with st.form(f"form_editar_{cedula_final}"):
                         nuevo_estado = st.selectbox("Modificar Estado del Estudio:", ["Realizado", "Pendiente", "En proceso"], index=["Realizado", "Pendiente", "En proceso"].index(p['estado']) if p['estado'] in ["Realizado", "Pendiente", "En proceso"] else 0)
                         nuevo_diagnostico = st.text_input("Actualizar Diagnóstico Presuntivo:", value=p['diagnostico'])
                         
                         st.markdown("---")
-                        st.write("📁 **Agregar más imágenes adicionales al paciente:**")
-                        nuevas_imgs = st.file_uploader("Subir imágenes nuevas (JPG/PNG):", type=["jpg", "jpeg", "png"], accept_multiple_files=True)
+                        st.write("📁 **Agregar más imágenes al paciente:**")
+                        nuevas_imgs = st.file_uploader("Subir imágenes nuevas (JPG/PNG):", type=["jpg", "jpeg", "png"], accept_multiple_files=True, key=f"add_{cedula_final}")
                         
+                        st.markdown("---")
+                        st.write("🗑️ **Eliminar imágenes existentes:**")
+                        
+                        # Recopilar imágenes actuales de la carpeta del paciente para poder borrarlas
+                        dir_estudio_ges = os.path.join(CARPETA_DATOS, f"estudio_{cedula_final}")
+                        paths_actuales_ges = []
+                        if os.path.exists(dir_estudio_ges) and os.path.isdir(dir_estudio_ges):
+                            for root, dirs, files in os.walk(dir_estudio_ges):
+                                for file in files:
+                                    if file.lower().endswith((".jpg", ".jpeg", ".png", ".bmp")):
+                                        paths_actuales_ges.append(os.path.join(root, file))
+                        
+                        imgs_a_borrar = []
+                        if paths_actuales_ges:
+                            nombres_ges = {os.path.basename(path): path for path in paths_actuales_ges}
+                            imgs_a_borrar = st.multiselect("Seleccione las imágenes que desea eliminar:", options=list(nombres_ges.keys()), key=f"del_{cedula_final}")
+                        else:
+                            st.info("No hay imágenes adicionales en la carpeta para eliminar.")
+
                         btn_guardar_cambios = st.form_submit_button("💾 Guardar Cambios")
                         
                         if btn_guardar_cambios:
@@ -253,12 +269,19 @@ with tab_buscar:
                                     
                             df_existente.to_excel(p['archivo'], index=False, header=False)
                             
+                            # Borrar las imágenes seleccionadas
+                            if paths_actuales_ges and imgs_a_borrar:
+                                for nom_img in imgs_a_borrar:
+                                    path_a_eliminar = nombres_ges.get(nom_img)
+                                    if path_a_eliminar and os.path.exists(path_a_eliminar):
+                                        os.remove(path_a_eliminar)
+
+                            # Agregar las nuevas imágenes si se subieron
                             if nuevas_imgs:
-                                dir_estudio = os.path.join(CARPETA_DATOS, f"estudio_{cedula_final}")
-                                os.makedirs(dir_estudio, exist_ok=True)
+                                os.makedirs(dir_estudio_ges, exist_ok=True)
                                 for idx_img, img_f in enumerate(nuevas_imgs):
                                     ext = os.path.splitext(img_f.name)[1]
-                                    path_dest = os.path.join(dir_estudio, f"imagen_adicional_{idx_img+1}{ext}")
+                                    path_dest = os.path.join(dir_estudio_ges, f"imagen_adicional_{idx_img+1}_{pd.Timestamp.now().strftime('%H%M%S')}{ext}")
                                     with open(path_dest, "wb") as f_img:
                                         f_img.write(img_f.getbuffer())
                                         
