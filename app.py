@@ -5,6 +5,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 from PIL import Image, ImageEnhance, ImageOps
 import base64
+import shutil
 
 # 1. Configuración de la página web Streamlit
 st.set_page_config(
@@ -240,7 +241,6 @@ with tab_buscar:
                         st.markdown("---")
                         st.write("🗑️ **Eliminar imágenes existentes:**")
                         
-                        # Recopilar imágenes actuales de la carpeta del paciente para poder borrarlas
                         dir_estudio_ges = os.path.join(CARPETA_DATOS, f"estudio_{cedula_final}")
                         paths_actuales_ges = []
                         if os.path.exists(dir_estudio_ges) and os.path.isdir(dir_estudio_ges):
@@ -269,14 +269,12 @@ with tab_buscar:
                                     
                             df_existente.to_excel(p['archivo'], index=False, header=False)
                             
-                            # Borrar las imágenes seleccionadas
                             if paths_actuales_ges and imgs_a_borrar:
                                 for nom_img in imgs_a_borrar:
                                     path_a_eliminar = nombres_ges.get(nom_img)
                                     if path_a_eliminar and os.path.exists(path_a_eliminar):
                                         os.remove(path_a_eliminar)
 
-                            # Agregar las nuevas imágenes si se subieron
                             if nuevas_imgs:
                                 os.makedirs(dir_estudio_ges, exist_ok=True)
                                 for idx_img, img_f in enumerate(nuevas_imgs):
@@ -301,6 +299,9 @@ with tab_buscar:
                 if st.button("🗑️ Eliminar este Paciente del Sistema", type="primary"):
                     if os.path.exists(p['archivo']):
                         os.remove(p['archivo'])
+                    carpeta_estudio_del = os.path.join(CARPETA_DATOS, f"estudio_{p['id']}")
+                    if os.path.exists(carpeta_estudio_del):
+                        shutil.rmtree(carpeta_estudio_del, ignore_errors=True)
                     ruta_img_del = os.path.join(CARPETA_DATOS, p['ruta_imagen'])
                     if os.path.exists(ruta_img_del) and os.path.isfile(ruta_img_del):
                         os.remove(ruta_img_del)
@@ -354,6 +355,22 @@ with tab_buscar:
                     st.image(img, width=ancho, caption=f"Imagen seleccionada: {img_elegida_nombre}")
                 else:
                     st.warning(f"⚠️ No hay imágenes cargadas para el paciente: {p['nombre']}")
+
+                # --- BOTÓN DE ELIMINAR PACIENTE ADICIONAL EN EL VISOR ---
+                st.divider()
+                if st.button("🗑️ Eliminar este Paciente (Desde el Visor)", type="primary", key=f"btn_del_visor_{cedula_final}"):
+                    if os.path.exists(p['archivo']):
+                        os.remove(p['archivo'])
+                    carpeta_estudio_del = os.path.join(CARPETA_DATOS, f"estudio_{p['id']}")
+                    if os.path.exists(carpeta_estudio_del):
+                        shutil.rmtree(carpeta_estudio_del, ignore_errors=True)
+                    ruta_img_del = os.path.join(CARPETA_DATOS, p['ruta_imagen'])
+                    if os.path.exists(ruta_img_del) and os.path.isfile(ruta_img_del):
+                        os.remove(ruta_img_del)
+                        
+                    st.success(f"Ficha de {p['nombre']} eliminada correctamente.")
+                    st.cache_data.clear()
+                    st.rerun()
                     
 # ==============================================================================
 # --- PESTAÑA 2: FORMULARIO DE REGISTRO ---
