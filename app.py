@@ -2,7 +2,9 @@ import base64
 import glob
 import os
 import shutil
+import numpy as np
 import pandas as pd
+import pydicom
 import streamlit as st
 import streamlit.components.v1 as components
 from PIL import Image, ImageEnhance, ImageOps
@@ -14,7 +16,7 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-# Carpeta fija y persistente para almacenar todos los expedientes (nuevos y por defecto)
+# Carpeta fija y persistente para almacenar todos los expedientes
 CARPETA_DATOS = "base_datos_dsa"
 os.makedirs(CARPETA_DATOS, exist_ok=True)
 
@@ -103,6 +105,32 @@ if not st.session_state.autenticado:
                 else:
                     st.error("❌ Usuario o contraseña incorrectos.")
     st.stop()
+
+
+# --- FUNCIÓN PARA CARGAR IMÁGENES NORMALES O DICOM (.dcm) ---
+def cargar_imagen_general(path):
+    ext = os.path.splitext(path)[1].lower()
+    if ext == ".dcm":
+        try:
+            ds = pydicom.dcmread(path)
+            pixel_array = ds.pixel_array
+            # Normalizar los valores de píxeles a rango 0-255 (uint8)
+            if pixel_array.max() != pixel_array.min():
+                pixel_array = (
+                    (pixel_array - pixel_array.min())
+                    / (pixel_array.max() - pixel_array.min())
+                    * 255.0
+                )
+            pixel_array = pixel_array.astype(np.uint8)
+            img = Image.fromarray(pixel_array)
+            if img.mode != "RGB":
+                img = img.convert("RGB")
+            return img
+        except Exception as e:
+            st.error(f"Error al procesar el archivo DICOM {path}: {e}")
+            return None
+    else:
+        return Image.open(path)
 
 
 # --- ASEGURAR LOS 3 PACIENTES PRINCIPALES POR DEFECTO ---
@@ -339,8 +367,8 @@ with tab_buscar:
                             use_container_width=True,
                         )
 
-                # --- MÓDULO DE EDICIÓN, AGREGAR Y ELIMINAR IMÁGENES ---
-                with st.expander("✏️ Editar Paciente / Gestionar Imágenes"):
+                # --- MÓDULO DE EDICIÓN, AGREGAR Y ELIMINAR IMÁGENES/DICOM ---
+                with st.expander("✏️ Editar Paciente / Gestionar Archivos"):
                     with st.form(f"form_editar_{cedula_final}"):
                         nuevo_estado = st.selectbox(
                             "Modificar Estado del Estudio:",
@@ -360,16 +388,16 @@ with tab_buscar:
                         )
 
                         st.markdown("---")
-                        st.write("📁 **Agregar más imágenes al paciente:**")
+                        st.write("📁 **Agregar más imágenes o archivos DICOM:**")
                         nuevas_imgs = st.file_uploader(
-                            "Subir imágenes nuevas (JPG/PNG):",
-                            type=["jpg", "jpeg", "png"],
+                            "Subir archivos nuevos (JPG/PNG/DICOM .dcm):",
+                            type=["jpg", "jpeg", "png", "bmp", "dcm"],
                             accept_multiple_files=True,
                             key=f"add_{cedula_final}",
                         )
 
                         st.markdown("---")
-                        st.write("🗑️ **Eliminar imágenes existentes:**")
+                        st.write("🗑️ **Eliminar archivos existentes:**")
 
                         dir_estudio_ges = os.path.join(
                             CARPETA_DATOS, f"estudio_{cedula_final}"
@@ -381,7 +409,7 @@ with tab_buscar:
                             for root, dirs, files in os.walk(dir_estudio_ges):
                                 for file in files:
                                     if file.lower().endswith(
-                                        (".jpg", ".jpeg", ".png", ".bmp")
+                                        (".jpg", ".jpeg", ".png", ".bmp", ".dcm")
                                     ):
                                         paths_actuales_ges.append(
                                             os.path.join(root, file)
@@ -394,13 +422,13 @@ with tab_buscar:
                                 for path in paths_actuales_ges
                             }
                             imgs_a_borrar = st.multiselect(
-                                "Seleccione las imágenes que desea eliminar:",
+                                "Seleccione los archivos que desea eliminar:",
                                 options=list(nombres_ges.keys()),
                                 key=f"del_{cedula_final}",
                             )
                         else:
                             st.info(
-                                "No hay imágenes adicionales en la carpeta para eliminar."
+                                "No hay archivos adicionales en la carpeta para eliminar."
                             )
 
                         btn_guardar_cambios = st.form_submit_button(
@@ -431,18 +459,18 @@ with tab_buscar:
                                         os.remove(path_a_eliminar)
 
                             if nuevas_imgs:
-                                os.makedirs(dir_estudio_ges, exist_ok=True)
+                                os.makedirs(dir_estudio, exist_ok=True)
                                 for idx_img, img_f in enumerate(nuevas_imgs):
                                     ext = os.path.splitext(img_f.name)[1]
                                     path_dest = os.path.join(
                                         dir_estudio_ges,
-                                        f"imagen_adicional_{idx_img+1}_{pd.Timestamp.now().strftime('%H%M%S')}{ext}",
+                                        f"archivo_adicional_{idx_img+1}_{pd.Timestamp.now().strftime('%H%M%S')}{ext}",
                                     )
                                     with open(path_dest, "wb") as f_img:
                                         f_img.write(img_f.getbuffer())
 
                             st.success(
-                                "¡Información e imágenes actualizadas con éxito!"
+                                "¡Información y archivos actualizados con éxito!"
                             )
                             st.cache_data.clear()
                             st.rerun()
@@ -458,7 +486,9 @@ with tab_buscar:
                 ancho = st.slider("Escala / Zoom (px)", 300, 1000, 600, 50)
 
                 st.divider()
-                if st.button("🗑️ Eliminar este Paciente del Sistema", type="primary"):
+                if st.button(
+                    "🗑️ Eliminar este Paciente del Sistema", type="primary"
+                ):
                     if os.path.exists(p["archivo"]):
                         os.remove(p["archivo"])
                     carpeta_estudio_del = os.path.join(
@@ -481,7 +511,9 @@ with tab_buscar:
                     st.rerun()
 
             with col_visor:
-                st.subheader("🖼️ Visor de Imágenes del Paciente")
+                st.subheader(
+                    "🖼️ Visor de Imágenes y Estudios DICOM del Paciente"
+                )
 
                 carpeta_estudio = os.path.join(
                     CARPETA_DATOS, f"estudio_{p['id']}"
@@ -494,7 +526,7 @@ with tab_buscar:
                     for root, dirs, files in os.walk(carpeta_estudio):
                         for file in files:
                             if file.lower().endswith(
-                                (".jpg", ".jpeg", ".png", ".bmp")
+                                (".jpg", ".jpeg", ".png", ".bmp", ".dcm")
                             ):
                                 todas_las_imagenes.append(
                                     os.path.join(root, file)
@@ -516,39 +548,41 @@ with tab_buscar:
                     ]
 
                     img_elegida_nombre = st.selectbox(
-                        "📂 Seleccione la imagen que desea visualizar:",
+                        "📂 Seleccione la imagen o archivo DICOM a visualizar:",
                         nombres_archivos,
                     )
                     img_sel_path = todas_las_imagenes[
                         nombres_archivos.index(img_elegida_nombre)
                     ]
 
-                    img = Image.open(img_sel_path)
+                    # Cargar mediante función compatible con JPG y DICOM
+                    img = cargar_imagen_general(img_sel_path)
 
-                    if invertir:
-                        if img.mode == "RGBA":
-                            r, g, b, a = img.split()
-                            rgb_img = Image.merge("RGB", (r, g, b))
-                            inv = ImageOps.invert(rgb_img)
-                            r, g, b = inv.split()
-                            img = Image.merge("RGBA", (r, g, b, a))
-                        else:
-                            img = ImageOps.invert(img.convert("RGB"))
+                    if img is not None:
+                        if invertir:
+                            if img.mode == "RGBA":
+                                r, g, b, a = img.split()
+                                rgb_img = Image.merge("RGB", (r, g, b))
+                                inv = ImageOps.invert(rgb_img)
+                                r, g, b = inv.split()
+                                img = Image.merge("RGBA", (r, g, b, a))
+                            else:
+                                img = ImageOps.invert(img.convert("RGB"))
 
-                    if rotacion != 0:
-                        img = img.rotate(-rotacion, expand=True)
+                        if rotacion != 0:
+                            img = img.rotate(-rotacion, expand=True)
 
-                    img = ImageEnhance.Brightness(img).enhance(brillo)
-                    img = ImageEnhance.Contrast(img).enhance(contraste)
+                        img = ImageEnhance.Brightness(img).enhance(brillo)
+                        img = ImageEnhance.Contrast(img).enhance(contraste)
 
-                    st.image(
-                        img,
-                        width=ancho,
-                        caption=f"Imagen seleccionada: {img_elegida_nombre}",
-                    )
+                        st.image(
+                            img,
+                            width=ancho,
+                            caption=f"Visualizando: {img_elegida_nombre}",
+                        )
                 else:
                     st.warning(
-                        f"⚠️ No hay imágenes cargadas para el paciente: {p['nombre']}"
+                        f"⚠️ No hay archivos o imágenes cargadas para el paciente: {p['nombre']}"
                     )
 
                 # --- BOTÓN DE ELIMINAR PACIENTE ADICIONAL EN EL VISOR ---
@@ -581,8 +615,10 @@ with tab_buscar:
 
 
 with tab_nuevo:
-    st.header("📝 Formulario de Registro Clínico")
-    st.write("Diligencie los datos y cargue las imágenes del estudio médico.")
+    st.header("📝 Formulario de Registro Clínico con Soporte DICOM")
+    st.write(
+        "Diligencie los datos y cargue las imágenes o archivos DICOM (.dcm) del estudio médico."
+    )
 
     with st.form("form_nuevo_paciente", clear_on_submit=False):
         col1, col2 = st.columns(2)
@@ -615,10 +651,10 @@ with tab_nuevo:
             )
 
         st.divider()
-        st.subheader("🧠 Carga de Imágenes del Paciente")
+        st.subheader("🧠 Carga de Imágenes o Archivos DICOM")
         archivos_imagenes = st.file_uploader(
-            "Seleccione las imágenes (puede elegir varias a la vez)",
-            type=["jpg", "jpeg", "png"],
+            "Seleccione las imágenes o archivos DICOM (puede elegir varios a la vez)",
+            type=["jpg", "jpeg", "png", "bmp", "dcm"],
             accept_multiple_files=True,
         )
 
@@ -650,18 +686,32 @@ with tab_nuevo:
                 nombre_imagen_soporte = primer_archivo_global
                 src_first = os.path.join(dir_estudio, primer_archivo_global)
                 if os.path.exists(src_first):
-                    img_data_bytes = open(src_first, "rb").read()
-                    with open(
-                        os.path.join(
-                            CARPETA_DATOS,
-                            f"{p_apellido}_{id_paciente}_principal.jpg",
-                        ),
-                        "wb",
-                    ) as f:
-                        f.write(img_data_bytes)
-                    nombre_imagen_soporte = (
-                        f"{p_apellido}_{id_paciente}_principal.jpg"
-                    )
+                    # Si es DICOM principal, intentamos convertir una vista previa JPG para compatibilidad del sistema
+                    ext_first = os.path.splitext(src_first)[1].lower()
+                    if ext_first == ".dcm":
+                        img_prev = cargar_imagen_general(src_first)
+                        if img_prev:
+                            path_jpg_principal = os.path.join(
+                                CARPETA_DATOS,
+                                f"{p_apellido}_{id_paciente}_principal.jpg",
+                            )
+                            img_prev.save(path_jpg_principal, "JPEG")
+                            nombre_imagen_soporte = (
+                                f"{p_apellido}_{id_paciente}_principal.jpg"
+                            )
+                    else:
+                        img_data_bytes = open(src_first, "rb").read()
+                        with open(
+                            os.path.join(
+                                CARPETA_DATOS,
+                                f"{p_apellido}_{id_paciente}_principal.jpg",
+                            ),
+                            "wb",
+                        ) as f:
+                            f.write(img_data_bytes)
+                        nombre_imagen_soporte = (
+                            f"{p_apellido}_{id_paciente}_principal.jpg"
+                        )
 
             datos_excel = [
                 ["BÚSQUEDA DE PACIENTE POR ID", None],
@@ -692,7 +742,7 @@ with tab_nuevo:
             df_nuevo.to_excel(path_excel, index=False, header=False)
 
             st.success(
-                f"✅ ¡Estudio para {p_nombre} {p_apellido} registrado y guardado permanentemente!"
+                f"✅ ¡Estudio (con soporte DICOM) para {p_nombre} {p_apellido} guardado correctamente!"
             )
 
             with open(path_excel, "rb") as file_excel:
