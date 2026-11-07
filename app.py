@@ -148,79 +148,141 @@ def cargar_imagen_general(path):
         return Image.open(path)
 
 
-# --- ASEGURAR LOS 3 PACIENTES PRINCIPALES POR DEFECTO ---
+# --- ASEGURAR LOS 3 PACIENTES PRINCIPALES CORREGIDOS (SEGÚN IMAGEN) ---
 def asegurar_pacientes_por_defecto():
     pacientes_base = [
         {
-            "excel_nombre": "excel Maria Eugenia.xlsx",
+            "excel_nombre": "excel JUAN CAMILO PEREZ.xlsx",
             "datos": [
                 ["BÚSQUEDA DE PACIENTE POR ID", None],
-                ["ID Paciente:", "101010"],
-                ["ID Paciente", "101010"],
-                ["PRIMER NOMBRE", "Maria"],
-                ["SEGUNDO NOMBRE", "Eugenia"],
-                ["PRIMER APELLIDO", "Perez"],
-                ["SEGUNDO APELLIDO", ""],
-                ["Edad", "45 años"],
-                ["sexo", "F"],
-                ["Motivo de consulta", "Control médico general"],
-                ["Síntomas principales", "Ninguno"],
-                ["Antecedentes", "Ninguno"],
-                ["Diagnóstico presuntivo", "Sano"],
-                ["Indicación clínica", "Control"],
+                ["ID Paciente:", "1005837241"],
+                ["ID Paciente", "1005837241"],
+                ["PRIMER NOMBRE", "JUAN"],
+                ["SEGUNDO NOMBRE", "CAMILO"],
+                ["PRIMER APELLIDO", "PEREZ"],
+                ["SEGUNDO APELLIDO", "ROJAS"],
+                ["Edad", "12 años"],
+                ["sexo", "M"],
+                [
+                    "Motivo de consulta",
+                    (
+                        "Dolor de tobillo derecho después de una caída durante"
+                        " actividad deportiva."
+                    ),
+                ],
+                [
+                    "Síntomas principales",
+                    (
+                        "Dolor localizado, inflamación leve y dificultad para"
+                        " caminar."
+                    ),
+                ],
+                [
+                    "Antecedentes",
+                    (
+                        "Sin antecedentes personales de importancia. Esquema de"
+                        " vacunación completo. Sin cirugías previas."
+                    ),
+                ],
+                [
+                    "Diagnóstico presuntivo",
+                    "Traumatismo de tobillo derecho.",
+                ],
+                ["Indicación clínica", "Descartar fractura."],
                 ["Modalidad diagnóstica", "RX"],
-                ["Tipo de estudio", "Rayos X de Tórax"],
-                ["Fecha", pd.Timestamp.now().strftime("%Y-%m-%d")],
+                ["Tipo de estudio", "Radiografía de tobillo derecho"],
+                ["Fecha", "18/08/2026"],
                 ["Estado del estudio", "Realizado"],
                 ["Ruta Soporte", "No disponible"],
                 ["Abrir Soporte", "No disponible"],
             ],
         },
         {
-            "excel_nombre": "excel Jairo Campos.xlsx",
+            "excel_nombre": "excel MARIA EUGENIA FANDIÑO.xlsx",
             "datos": [
                 ["BÚSQUEDA DE PACIENTE POR ID", None],
-                ["ID Paciente:", "202020"],
-                ["ID Paciente", "202020"],
-                ["PRIMER NOMBRE", "Jairo"],
-                ["SEGUNDO NOMBRE", ""],
-                ["PRIMER APELLIDO", "Campos"],
-                ["SEGUNDO APELLIDO", ""],
-                ["Edad", "50 años"],
-                ["sexo", "M"],
-                ["Motivo de consulta", "Dolor lumbar"],
-                ["Síntomas principales", "Lumbalgia"],
-                ["Antecedentes", "Lumbalgia crónica"],
-                ["Diagnóstico presuntivo", "Espondilosis"],
-                ["Indicación clínica", "Evaluación de columna"],
-                ["Modalidad diagnóstica", "TAC"],
-                ["Tipo de estudio", "TAC de columna lumbar"],
-                ["Fecha", pd.Timestamp.now().strftime("%Y-%m-%d")],
-                ["Estado del estudio", "Realizado"],
+                ["ID Paciente:", "1027463815"],
+                ["ID Paciente", "1027463815"],
+                ["PRIMER NOMBRE", "MARIA"],
+                ["SEGUNDO NOMBRE", "EUGENIA"],
+                ["PRIMER APELLIDO", "FANDIÑO"],
+                ["SEGUNDO APELLIDO", "PACHON"],
+                ["Edad", "64 años"],
+                ["sexo", "F"],
+                [
+                    "Motivo de consulta",
+                    "Cefalea reciente acompañada de mareo e inestabilidad.",
+                ],
+                [
+                    "Síntomas principales",
+                    "Cefalea, mareo y sensación de inestabilidad.",
+                ],
+                [
+                    "Antecedentes",
+                    (
+                        "Hipertensión arterial diagnosticada hace 10 años, en"
+                        " tratamiento farmacológico. Niega cirugías recientes."
+                        " Antecedente familiar de enfermedad cerebrovascular."
+                    ),
+                ],
+                [
+                    "Diagnóstico presuntivo",
+                    "Cefalea de etiología por determinar.",
+                ],
+                ["Indicación clínica", "Descartar alteración intracraneal."],
+                ["Modalidad diagnóstica", "CT"],
+                ["Tipo de estudio", "Tomografía de cráneo"],
+                ["Fecha", "18/08/2026"],
+                ["Estado del estudio", "Pendiente"],
                 ["Ruta Soporte", "No disponible"],
                 ["Abrir Soporte", "No disponible"],
             ],
         },
         {
-            "excel_nombre": "excel Juan Camilo.xlsx",
+            "excel_nombre": "excel JAIRO HERNANDO CAMPOS.xlsx",
             "datos": [
                 ["BÚSQUEDA DE PACIENTE POR ID", None],
-                ["ID Paciente:", "303030"],
-                ["ID Paciente", "303030"],
-                ["PRIMER NOMBRE", "Juan"],
-                ["SEGUNDO NOMBRE", "Camilo"],
-                ["PRIMER APELLIDO", "Gomez"],
-                ["SEGUNDO APELLIDO", ""],
-                ["Edad", "30 años"],
+                ["ID Paciente:", "1039158274"],
+                ["ID Paciente", "1039158274"],
+                ["PRIMER NOMBRE", "JAIRO"],
+                ["SEGUNDO NOMBRE", "HERNANDO"],
+                ["PRIMER APELLIDO", "CAMPOS"],
+                ["SEGUNDO APELLIDO", "MORA"],
+                ["Edad", "72 años"],
                 ["sexo", "M"],
-                ["Motivo de consulta", "Traumatismo en rodilla"],
-                ["Síntomas principales", "Dolor e inflamación"],
-                ["Antecedentes", "Deportista"],
-                ["Diagnóstico presuntivo", "Posible esguince"],
-                ["Indicación clínica", "Estudio articular"],
+                [
+                    "Motivo de consulta",
+                    (
+                        "Dolor lumbar de varios meses de evolución y dificultad"
+                        " para caminar."
+                    ),
+                ],
+                [
+                    "Síntomas principales",
+                    (
+                        "Dolor lumbar, rigidez y parestesias ocasionales en"
+                        " miembros inferiores."
+                    ),
+                ],
+                [
+                    "Antecedentes",
+                    (
+                        "Hipertensión arterial controlada y antecedente de"
+                        " artrosis. Cirugía de rodilla hace aproximadamente 8"
+                        " años. Niega trauma reciente."
+                    ),
+                ],
+                [
+                    "Diagnóstico presuntivo",
+                    "Enfermedad degenerativa de columna lumbar.",
+                ],
+                [
+                    "Indicación clínica",
+                    "Resonancia magnética de columna lumbar.",
+                ],
                 ["Modalidad diagnóstica", "RM"],
-                ["Tipo de estudio", "Resonancia de Rodilla"],
-                ["Fecha", pd.Timestamp.now().strftime("%Y-%m-%d")],
+                ["Tipo de estudio", "Resonancia de columna"],
+                ["Fecha", "18/08/2026"],
                 ["Estado del estudio", "Realizado"],
                 ["Ruta Soporte", "No disponible"],
                 ["Abrir Soporte", "No disponible"],
@@ -564,7 +626,6 @@ with tab_buscar:
                         os.path.basename(path) for path in todas_las_imagenes
                     ]
 
-                    # Dividimos en columnas: Selector de imagen a la izquierda, botón de eliminar secuencia a la derecha
                     col_sel, col_del_sec = st.columns([3, 1])
 
                     with col_sel:
@@ -579,7 +640,7 @@ with tab_buscar:
                     ]
 
                     with col_del_sec:
-                        st.write("")  # Espaciador visual para alinear con el selectbox
+                        st.write("")
                         st.write("")
                         if st.button(
                             "🗑️ Eliminar secuencia",
@@ -792,3 +853,4 @@ with tab_nuevo:
                 )
 
             st.cache_data.clear()
+            
