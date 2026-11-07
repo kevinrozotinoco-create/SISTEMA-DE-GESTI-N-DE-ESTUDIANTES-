@@ -14,7 +14,7 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-# Carpeta fija y persistente para almacenar los expedientes y pacientes agregados
+# Carpeta fija y persistente para almacenar todos los expedientes (nuevos y por defecto)
 CARPETA_DATOS = "base_datos_dsa"
 os.makedirs(CARPETA_DATOS, exist_ok=True)
 
@@ -40,15 +40,18 @@ inicializar_sesion()
 if not st.session_state.autenticado:
 
     def obtener_base64_imagen(ruta_imagen):
-        with open(ruta_imagen, "rb") as img_file:
-            return base64.b64encode(img_file.read()).decode()
+        try:
+            with open(ruta_imagen, "rb") as img_file:
+                return base64.b64encode(img_file.read()).decode()
+        except Exception:
+            return ""
 
-    try:
-        img_base64 = obtener_base64_imagen("fondo.jpg")
+    img_base64 = obtener_base64_imagen("fondo.jpg")
+    if img_base64:
         background_style = (
             f'background-image: url("data:image/jpeg;base64,{img_base64}");'
         )
-    except Exception:
+    else:
         background_style = "background-color: #0e1117;"
 
     st.markdown(
@@ -100,6 +103,97 @@ if not st.session_state.autenticado:
                 else:
                     st.error("❌ Usuario o contraseña incorrectos.")
     st.stop()
+
+
+# --- ASEGURAR LOS 3 PACIENTES PRINCIPALES POR DEFECTO ---
+def asegurar_pacientes_por_defecto():
+    pacientes_base = [
+        {
+            "excel_nombre": "excel Maria Eugenia.xlsx",
+            "datos": [
+                ["BÚSQUEDA DE PACIENTE POR ID", None],
+                ["ID Paciente:", "101010"],
+                ["ID Paciente", "101010"],
+                ["PRIMER NOMBRE", "Maria"],
+                ["SEGUNDO NOMBRE", "Eugenia"],
+                ["PRIMER APELLIDO", "Perez"],
+                ["SEGUNDO APELLIDO", ""],
+                ["Edad", "45 años"],
+                ["sexo", "F"],
+                ["Motivo de consulta", "Control médico general"],
+                ["Síntomas principales", "Ninguno"],
+                ["Antecedentes", "Ninguno"],
+                ["Diagnóstico presuntivo", "Sano"],
+                ["Indicación clínica", "Control"],
+                ["Modalidad diagnóstica", "RX"],
+                ["Tipo de estudio", "Rayos X de Tórax"],
+                ["Fecha", pd.Timestamp.now().strftime("%Y-%m-%d")],
+                ["Estado del estudio", "Realizado"],
+                ["Ruta Soporte", "No disponible"],
+                ["Abrir Soporte", "No disponible"],
+            ],
+        },
+        {
+            "excel_nombre": "excel Jairo Campos.xlsx",
+            "datos": [
+                ["BÚSQUEDA DE PACIENTE POR ID", None],
+                ["ID Paciente:", "202020"],
+                ["ID Paciente", "202020"],
+                ["PRIMER NOMBRE", "Jairo"],
+                ["SEGUNDO NOMBRE", ""],
+                ["PRIMER APELLIDO", "Campos"],
+                ["SEGUNDO APELLIDO", ""],
+                ["Edad", "50 años"],
+                ["sexo", "M"],
+                ["Motivo de consulta", "Dolor lumbar"],
+                ["Síntomas principales", "Lumbalgia"],
+                ["Antecedentes", "Lumbalgia crónica"],
+                ["Diagnóstico presuntivo", "Espondilosis"],
+                ["Indicación clínica", "Evaluación de columna"],
+                ["Modalidad diagnóstica", "TAC"],
+                ["Tipo de estudio", "TAC de columna lumbar"],
+                ["Fecha", pd.Timestamp.now().strftime("%Y-%m-%d")],
+                ["Estado del estudio", "Realizado"],
+                ["Ruta Soporte", "No disponible"],
+                ["Abrir Soporte", "No disponible"],
+            ],
+        },
+        {
+            "excel_nombre": "excel Juan Camilo.xlsx",
+            "datos": [
+                ["BÚSQUEDA DE PACIENTE POR ID", None],
+                ["ID Paciente:", "303030"],
+                ["ID Paciente", "303030"],
+                ["PRIMER NOMBRE", "Juan"],
+                ["SEGUNDO NOMBRE", "Camilo"],
+                ["PRIMER APELLIDO", "Gomez"],
+                ["SEGUNDO APELLIDO", ""],
+                ["Edad", "30 años"],
+                ["sexo", "M"],
+                ["Motivo de consulta", "Traumatismo en rodilla"],
+                ["Síntomas principales", "Dolor e inflamación"],
+                ["Antecedentes", "Deportista"],
+                ["Diagnóstico presuntivo", "Posible esguince"],
+                ["Indicación clínica", "Estudio articular"],
+                ["Modalidad diagnóstica", "RM"],
+                ["Tipo de estudio", "Resonancia de Rodilla"],
+                ["Fecha", pd.Timestamp.now().strftime("%Y-%m-%d")],
+                ["Estado del estudio", "Realizado"],
+                ["Ruta Soporte", "No disponible"],
+                ["Abrir Soporte", "No disponible"],
+            ],
+        },
+    ]
+
+    for p in pacientes_base:
+        path_excel = os.path.join(CARPETA_DATOS, p["excel_nombre"])
+        if not os.path.exists(path_excel):
+            df = pd.DataFrame(p["datos"])
+            df.to_excel(path_excel, index=False, header=False)
+
+
+# Ejecutar la verificación al iniciar
+asegurar_pacientes_por_defecto()
 
 
 @st.cache_data(ttl=1)
@@ -201,9 +295,7 @@ with tab_buscar:
             "Seleccione un paciente:", [opcion_lista] + list(opciones.keys())
         )
     else:
-        st.sidebar.warning(
-            "No se encontraron archivos de pacientes registrados."
-        )
+        st.sidebar.warning("No se encontraron archivos de pacientes.")
         seleccion_combo = opcion_lista
 
     cedula_escrita = st.text_input(
@@ -312,7 +404,7 @@ with tab_buscar:
                             )
 
                         btn_guardar_cambios = st.form_submit_button(
-                            "💾 Guardar Cambios Permanentemente"
+                            "💾 Guardar Cambios"
                         )
 
                         if btn_guardar_cambios:
@@ -350,7 +442,7 @@ with tab_buscar:
                                         f_img.write(img_f.getbuffer())
 
                             st.success(
-                                "¡Cambios guardados permanentemente con éxito!"
+                                "¡Información e imágenes actualizadas con éxito!"
                             )
                             st.cache_data.clear()
                             st.rerun()
@@ -366,9 +458,7 @@ with tab_buscar:
                 ancho = st.slider("Escala / Zoom (px)", 300, 1000, 600, 50)
 
                 st.divider()
-                if st.button(
-                    "🗑️ Eliminar este Paciente del Sistema", type="primary"
-                ):
+                if st.button("🗑️ Eliminar este Paciente del Sistema", type="primary"):
                     if os.path.exists(p["archivo"]):
                         os.remove(p["archivo"])
                     carpeta_estudio_del = os.path.join(
@@ -492,9 +582,7 @@ with tab_buscar:
 
 with tab_nuevo:
     st.header("📝 Formulario de Registro Clínico")
-    st.write(
-        "Diligencie los datos y cargue las imágenes del estudio médico para guardarlas permanentemente."
-    )
+    st.write("Diligencie los datos y cargue las imágenes del estudio médico.")
 
     with st.form("form_nuevo_paciente", clear_on_submit=False):
         col1, col2 = st.columns(2)
@@ -534,9 +622,7 @@ with tab_nuevo:
             accept_multiple_files=True,
         )
 
-        boton_guardar = st.form_submit_button(
-            "💾 Guardar Paciente Permanentemente en el Sistema"
-        )
+        boton_guardar = st.form_submit_button("💾 Guardar Paciente en el Sistema")
 
     if boton_guardar:
         if not id_paciente or not p_nombre or not p_apellido:
@@ -606,7 +692,7 @@ with tab_nuevo:
             df_nuevo.to_excel(path_excel, index=False, header=False)
 
             st.success(
-                f"✅ ¡Estudio para {p_nombre} {p_apellido} guardado permanentemente con éxito!"
+                f"✅ ¡Estudio para {p_nombre} {p_apellido} registrado y guardado permanentemente!"
             )
 
             with open(path_excel, "rb") as file_excel:
