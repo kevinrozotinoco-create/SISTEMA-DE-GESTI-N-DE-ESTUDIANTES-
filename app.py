@@ -14,8 +14,9 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-# Carpeta base donde se crearán las subcarpetas de cada usuario
-CARPETA_BASE = "./datos_usuarios"
+# Carpeta fija y persistente para almacenar los expedientes y pacientes agregados
+CARPETA_DATOS = "base_datos_dsa"
+os.makedirs(CARPETA_DATOS, exist_ok=True)
 
 USUARIOS_VALIDOS = {
     "darhienn": "1995",
@@ -36,7 +37,6 @@ def inicializar_sesion():
 
 inicializar_sesion()
 
-# Pantalla de Login
 if not st.session_state.autenticado:
 
     def obtener_base64_imagen(ruta_imagen):
@@ -94,18 +94,12 @@ if not st.session_state.autenticado:
             if btn_login:
                 if usr in USUARIOS_VALIDOS and USUARIOS_VALIDOS[usr] == pwd:
                     st.session_state.autenticado = True
-                    st.session_state.usuario = usr.lower()  # Normalizar usuario a minúsculas
+                    st.session_state.usuario = usr
                     st.success("✅ Acceso concedido. Cargando sistema...")
                     st.rerun()
                 else:
                     st.error("❌ Usuario o contraseña incorrectos.")
     st.stop()
-
-# --- DEFINICIÓN DE CARPETA PROPIA DEL USUARIO AUTENTICADO ---
-CARPETA_DATOS_USUARIO = os.path.join(
-    CARPETA_BASE, st.session_state.usuario
-)
-os.makedirs(CARPETA_DATOS_USUARIO, exist_ok=True)
 
 
 @st.cache_data(ttl=1)
@@ -192,8 +186,8 @@ tab_buscar, tab_nuevo = st.tabs(
     ["🔍 Consultar Paciente y Visor PACS", "➕ Registrar Nuevo Paciente"]
 )
 
-# Cargar únicamente los pacientes pertenecientes al usuario actual
-pacientes = cargar_todos_los_pacientes(CARPETA_DATOS_USUARIO)
+pacientes = cargar_todos_los_pacientes(CARPETA_DATOS)
+
 
 with tab_buscar:
     st.sidebar.header("📋 Historias Registradas")
@@ -207,7 +201,9 @@ with tab_buscar:
             "Seleccione un paciente:", [opcion_lista] + list(opciones.keys())
         )
     else:
-        st.sidebar.warning("No se encontraron archivos de pacientes.")
+        st.sidebar.warning(
+            "No se encontraron archivos de pacientes registrados."
+        )
         seleccion_combo = opcion_lista
 
     cedula_escrita = st.text_input(
@@ -284,7 +280,7 @@ with tab_buscar:
                         st.write("🗑️ **Eliminar imágenes existentes:**")
 
                         dir_estudio_ges = os.path.join(
-                            CARPETA_DATOS_USUARIO, f"estudio_{cedula_final}"
+                            CARPETA_DATOS, f"estudio_{cedula_final}"
                         )
                         paths_actuales_ges = []
                         if os.path.exists(dir_estudio_ges) and os.path.isdir(
@@ -354,7 +350,7 @@ with tab_buscar:
                                         f_img.write(img_f.getbuffer())
 
                             st.success(
-                                "¡Información guardada para este usuario correctamente!"
+                                "¡Cambios guardados permanentemente con éxito!"
                             )
                             st.cache_data.clear()
                             st.rerun()
@@ -376,12 +372,12 @@ with tab_buscar:
                     if os.path.exists(p["archivo"]):
                         os.remove(p["archivo"])
                     carpeta_estudio_del = os.path.join(
-                        CARPETA_DATOS_USUARIO, f"estudio_{p['id']}"
+                        CARPETA_DATOS, f"estudio_{p['id']}"
                     )
                     if os.path.exists(carpeta_estudio_del):
                         shutil.rmtree(carpeta_estudio_del, ignore_errors=True)
                     ruta_img_del = os.path.join(
-                        CARPETA_DATOS_USUARIO, p["ruta_imagen"]
+                        CARPETA_DATOS, p["ruta_imagen"]
                     )
                     if os.path.exists(ruta_img_del) and os.path.isfile(
                         ruta_img_del
@@ -398,7 +394,7 @@ with tab_buscar:
                 st.subheader("🖼️ Visor de Imágenes del Paciente")
 
                 carpeta_estudio = os.path.join(
-                    CARPETA_DATOS_USUARIO, f"estudio_{p['id']}"
+                    CARPETA_DATOS, f"estudio_{p['id']}"
                 )
                 todas_las_imagenes = []
 
@@ -416,7 +412,7 @@ with tab_buscar:
 
                 if not todas_las_imagenes:
                     ruta_principal = os.path.join(
-                        CARPETA_DATOS_USUARIO, p["ruta_imagen"]
+                        CARPETA_DATOS, p["ruta_imagen"]
                     )
                     if os.path.exists(ruta_principal) and os.path.isfile(
                         ruta_principal
@@ -475,12 +471,12 @@ with tab_buscar:
                     if os.path.exists(p["archivo"]):
                         os.remove(p["archivo"])
                     carpeta_estudio_del = os.path.join(
-                        CARPETA_DATOS_USUARIO, f"estudio_{p['id']}"
+                        CARPETA_DATOS, f"estudio_{p['id']}"
                     )
                     if os.path.exists(carpeta_estudio_del):
                         shutil.rmtree(carpeta_estudio_del, ignore_errors=True)
                     ruta_img_del = os.path.join(
-                        CARPETA_DATOS_USUARIO, p["ruta_imagen"]
+                        CARPETA_DATOS, p["ruta_imagen"]
                     )
                     if os.path.exists(ruta_img_del) and os.path.isfile(
                         ruta_img_del
@@ -496,7 +492,9 @@ with tab_buscar:
 
 with tab_nuevo:
     st.header("📝 Formulario de Registro Clínico")
-    st.write("Diligencie los datos y cargue las imágenes del estudio médico.")
+    st.write(
+        "Diligencie los datos y cargue las imágenes del estudio médico para guardarlas permanentemente."
+    )
 
     with st.form("form_nuevo_paciente", clear_on_submit=False):
         col1, col2 = st.columns(2)
@@ -537,7 +535,7 @@ with tab_nuevo:
         )
 
         boton_guardar = st.form_submit_button(
-            "💾 Guardar Paciente en el Sistema"
+            "💾 Guardar Paciente Permanentemente en el Sistema"
         )
 
     if boton_guardar:
@@ -547,9 +545,7 @@ with tab_nuevo:
             )
         else:
             nombre_imagen_soporte = "No disponible: el estudio está pendiente"
-            dir_estudio = os.path.join(
-                CARPETA_DATOS_USUARIO, f"estudio_{id_paciente}"
-            )
+            dir_estudio = os.path.join(CARPETA_DATOS, f"estudio_{id_paciente}")
             os.makedirs(dir_estudio, exist_ok=True)
 
             primer_archivo_global = None
@@ -571,7 +567,7 @@ with tab_nuevo:
                     img_data_bytes = open(src_first, "rb").read()
                     with open(
                         os.path.join(
-                            CARPETA_DATOS_USUARIO,
+                            CARPETA_DATOS,
                             f"{p_apellido}_{id_paciente}_principal.jpg",
                         ),
                         "wb",
@@ -606,11 +602,11 @@ with tab_nuevo:
 
             df_nuevo = pd.DataFrame(datos_excel)
             nombre_excel = f"excel {p_nombre} {p_apellido}.xlsx"
-            path_excel = os.path.join(CARPETA_DATOS_USUARIO, nombre_excel)
+            path_excel = os.path.join(CARPETA_DATOS, nombre_excel)
             df_nuevo.to_excel(path_excel, index=False, header=False)
 
             st.success(
-                f"✅ ¡Estudio para {p_nombre} {p_apellido} registrado correctamente!"
+                f"✅ ¡Estudio para {p_nombre} {p_apellido} guardado permanentemente con éxito!"
             )
 
             with open(path_excel, "rb") as file_excel:
@@ -622,5 +618,4 @@ with tab_nuevo:
                 )
 
             st.cache_data.clear()
-            st.rerun()
             
