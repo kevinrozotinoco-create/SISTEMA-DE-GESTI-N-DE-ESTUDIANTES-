@@ -107,20 +107,36 @@ if not st.session_state.autenticado:
     st.stop()
 
 
-# --- FUNCIÓN PARA CARGAR IMÁGENES NORMALES O DICOM (.dcm) ---
+# --- FUNCIÓN MEJORADA PARA CARGAR IMÁGENES Y DICOM CON BUEN CONTRASTE ---
 def cargar_imagen_general(path):
     ext = os.path.splitext(path)[1].lower()
     if ext == ".dcm":
         try:
             ds = pydicom.dcmread(path)
-            pixel_array = ds.pixel_array
-            if pixel_array.max() != pixel_array.min():
+            pixel_array = ds.pixel_array.astype(float)
+
+            # Aplicar pendiente e intercepto si existen (escala Hounsfield)
+            slope = getattr(ds, "RescaleSlope", 1)
+            intercept = getattr(ds, "RescaleIntercept", 0)
+            pixel_array = pixel_array * slope + intercept
+
+            # Normalización robusta con percentiles (1% y 99%)
+            p_low, p_high = np.percentile(pixel_array, (1, 99))
+            if p_high > p_low:
+                pixel_array = np.clip(pixel_array, p_low, p_high)
                 pixel_array = (
-                    (pixel_array - pixel_array.min())
-                    / (pixel_array.max() - pixel_array.min())
-                    * 255.0
+                    (pixel_array - p_low) / (p_high - p_low) * 255.0
                 )
+            else:
+                pixel_array = np.zeros_like(pixel_array)
+
             pixel_array = pixel_array.astype(np.uint8)
+
+            # Manejar inversión fotométrica (MONOCHROME1 vs MONOCHROME2)
+            photometric = getattr(ds, "PhotometricInterpretation", "MONOCHROME2")
+            if photometric == "MONOCHROME1":
+                pixel_array = 255 - pixel_array
+
             img = Image.fromarray(pixel_array)
             if img.mode != "RGB":
                 img = img.convert("RGB")
@@ -548,15 +564,37 @@ with tab_buscar:
                         os.path.basename(path) for path in todas_las_imagenes
                     ]
 
-                    img_elegida_nombre = st.selectbox(
-                        "📂 Seleccione la imagen o archivo DICOM de la secuencia:",
-                        nombres_archivos,
-                    )
+                    # Dividimos en columnas: Selector de imagen a la izquierda, botón de eliminar secuencia a la derecha
+                    col_sel, col_del_sec = st.columns([3, 1])
+
+                    with col_sel:
+                        img_elegida_nombre = st.selectbox(
+                            "📂 Seleccione la imagen o archivo DICOM de la secuencia:",
+                            nombres_archivos,
+                            key=f"sel_img_{cedula_final}",
+                        )
+
                     img_sel_path = todas_las_imagenes[
                         nombres_archivos.index(img_elegida_nombre)
                     ]
 
-                    # Cargar mediante función compatible con JPG y DICOM
+                    with col_del_sec:
+                        st.write("")  # Espaciador visual para alinear con el selectbox
+                        st.write("")
+                        if st.button(
+                            "🗑️ Eliminar secuencia",
+                            key=f"btn_del_sec_{img_elegida_nombre}_{cedula_final}",
+                            type="secondary",
+                        ):
+                            if os.path.exists(img_sel_path):
+                                os.remove(img_sel_path)
+                                st.success(
+                                    f"Secuencia '{img_elegida_nombre}' eliminada con éxito."
+                                )
+                                st.cache_data.clear()
+                                st.rerun()
+
+                    # Cargar mediante la función mejorada
                     img = cargar_imagen_general(img_sel_path)
 
                     if img is not None:
@@ -754,4 +792,3 @@ with tab_nuevo:
                 )
 
             st.cache_data.clear()
-            
