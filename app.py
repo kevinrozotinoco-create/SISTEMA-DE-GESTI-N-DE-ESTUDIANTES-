@@ -16,9 +16,7 @@ st.set_page_config(
 
 CARPETA_DATOS = "."
 
-# ==============================================================================
-# 🔐 MÓDULO DE AUTENTICACIÓN Y SEGURIDAD
-# ==============================================================================
+
 USUARIOS_VALIDOS = {
     "darhienn": "1995",
     "Darhienn": "1995",
@@ -26,7 +24,6 @@ USUARIOS_VALIDOS = {
     "Darien": "1995",
     "admin": "pacs2026",
     "medico": "radiologia123",
-    "kevin": "compensar2026"
 }
 
 def inicializar_sesion():
@@ -96,9 +93,7 @@ if not st.session_state.autenticado:
                     st.error("❌ Usuario o contraseña incorrectos.")
     st.stop()
 
-# ==============================================================================
-# 📂 LECTURA DE DATOS CLÍNICOS Y ARCHIVOS DE PACIENTES
-# ==============================================================================
+
 @st.cache_data(ttl=1)
 def cargar_todos_los_pacientes(carpeta):
     pacientes = {}
@@ -162,9 +157,7 @@ def cargar_todos_los_pacientes(carpeta):
             
     return pacientes
 
-# ==============================================================================
-# 🖥️ INTERFAZ PRINCIPAL Y BARRA LATERAL
-# ==============================================================================
+
 with st.sidebar:
     st.write(f"👤 **Usuario activo:** `{st.session_state.usuario.upper()}`")
     if st.button("🚪 Cerrar Sesión"):
@@ -177,9 +170,7 @@ tab_buscar, tab_nuevo = st.tabs(["🔍 Consultar Paciente y Visor PACS", "➕ Re
 
 pacientes = cargar_todos_los_pacientes(CARPETA_DATOS)
 
-# ==============================================================================
-# --- PESTAÑA 1: CONSULTA CLÍNICA Y VISOR DE IMÁGENES LIBRE ---
-# ==============================================================================
+
 with tab_buscar:
     st.sidebar.header("📋 Historias Registradas")
     
@@ -372,9 +363,7 @@ with tab_buscar:
                     st.cache_data.clear()
                     st.rerun()
                     
-# ==============================================================================
-# --- PESTAÑA 2: FORMULARIO DE REGISTRO ---
-# ==============================================================================
+
 with tab_nuevo:
     st.header("📝 Formulario de Registro Clínico")
     st.write("Diligencie los datos y cargue las imágenes del estudio médico.")
