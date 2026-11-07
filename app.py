@@ -114,7 +114,6 @@ def cargar_imagen_general(path):
         try:
             ds = pydicom.dcmread(path)
             pixel_array = ds.pixel_array
-            # Normalizar los valores de píxeles a rango 0-255 (uint8)
             if pixel_array.max() != pixel_array.min():
                 pixel_array = (
                     (pixel_array - pixel_array.min())
@@ -367,8 +366,8 @@ with tab_buscar:
                             use_container_width=True,
                         )
 
-                # --- MÓDULO DE EDICIÓN, AGREGAR Y ELIMINAR IMÁGENES/DICOM ---
-                with st.expander("✏️ Editar Paciente / Gestionar Archivos"):
+                # --- MÓDULO DE EDICIÓN Y GESTIÓN DE SECUENCIAS (DICOM / IMÁGENES) ---
+                with st.expander("✏️ Editar Paciente / Gestionar Secuencias"):
                     with st.form(f"form_editar_{cedula_final}"):
                         nuevo_estado = st.selectbox(
                             "Modificar Estado del Estudio:",
@@ -388,9 +387,11 @@ with tab_buscar:
                         )
 
                         st.markdown("---")
-                        st.write("📁 **Agregar más imágenes o archivos DICOM:**")
+                        st.write(
+                            "📁 **Agregar más imágenes o secuencia DICOM (.dcm):**"
+                        )
                         nuevas_imgs = st.file_uploader(
-                            "Subir archivos nuevos (JPG/PNG/DICOM .dcm):",
+                            "Subir archivos adicionales (JPG/PNG/DICOM .dcm):",
                             type=["jpg", "jpeg", "png", "bmp", "dcm"],
                             accept_multiple_files=True,
                             key=f"add_{cedula_final}",
@@ -427,9 +428,7 @@ with tab_buscar:
                                 key=f"del_{cedula_final}",
                             )
                         else:
-                            st.info(
-                                "No hay archivos adicionales en la carpeta para eliminar."
-                            )
+                            st.info("No hay archivos adicionales para eliminar.")
 
                         btn_guardar_cambios = st.form_submit_button(
                             "💾 Guardar Cambios"
@@ -459,18 +458,20 @@ with tab_buscar:
                                         os.remove(path_a_eliminar)
 
                             if nuevas_imgs:
-                                os.makedirs(dir_estudio, exist_ok=True)
+                                os.makedirs(dir_estudio_ges, exist_ok=True)
                                 for idx_img, img_f in enumerate(nuevas_imgs):
-                                    ext = os.path.splitext(img_f.name)[1]
+                                    ext = os.path.splitext(img_f.name)[
+                                        1
+                                    ].lower()
                                     path_dest = os.path.join(
                                         dir_estudio_ges,
-                                        f"archivo_adicional_{idx_img+1}_{pd.Timestamp.now().strftime('%H%M%S')}{ext}",
+                                        f"secuencia_adicional_{idx_img+1}_{pd.Timestamp.now().strftime('%H%M%S')}{ext}",
                                     )
                                     with open(path_dest, "wb") as f_img:
                                         f_img.write(img_f.getbuffer())
 
                             st.success(
-                                "¡Información y archivos actualizados con éxito!"
+                                "¡Información y secuencia actualizadas con éxito!"
                             )
                             st.cache_data.clear()
                             st.rerun()
@@ -512,7 +513,7 @@ with tab_buscar:
 
             with col_visor:
                 st.subheader(
-                    "🖼️ Visor de Imágenes y Estudios DICOM del Paciente"
+                    "🖼️ Visor de Secuencia DICOM e Imágenes del Paciente"
                 )
 
                 carpeta_estudio = os.path.join(
@@ -548,7 +549,7 @@ with tab_buscar:
                     ]
 
                     img_elegida_nombre = st.selectbox(
-                        "📂 Seleccione la imagen o archivo DICOM a visualizar:",
+                        "📂 Seleccione la imagen o archivo DICOM de la secuencia:",
                         nombres_archivos,
                     )
                     img_sel_path = todas_las_imagenes[
@@ -582,7 +583,7 @@ with tab_buscar:
                         )
                 else:
                     st.warning(
-                        f"⚠️ No hay archivos o imágenes cargadas para el paciente: {p['nombre']}"
+                        f"⚠️ No hay archivos o secuencias cargadas para el paciente: {p['nombre']}"
                     )
 
                 # --- BOTÓN DE ELIMINAR PACIENTE ADICIONAL EN EL VISOR ---
@@ -651,7 +652,7 @@ with tab_nuevo:
             )
 
         st.divider()
-        st.subheader("🧠 Carga de Imágenes o Archivos DICOM")
+        st.subheader("🧠 Carga de Imágenes o Archivos DICOM de la Secuencia")
         archivos_imagenes = st.file_uploader(
             "Seleccione las imágenes o archivos DICOM (puede elegir varios a la vez)",
             type=["jpg", "jpeg", "png", "bmp", "dcm"],
@@ -674,7 +675,7 @@ with tab_nuevo:
 
             if archivos_imagenes:
                 for idx, img_file in enumerate(archivos_imagenes):
-                    ext = os.path.splitext(img_file.name)[1]
+                    ext = os.path.splitext(img_file.name)[1].lower()
                     filename = f"imagen_{idx+1}{ext}"
                     path_dest = os.path.join(dir_estudio, filename)
                     with open(path_dest, "wb") as f:
@@ -686,7 +687,6 @@ with tab_nuevo:
                 nombre_imagen_soporte = primer_archivo_global
                 src_first = os.path.join(dir_estudio, primer_archivo_global)
                 if os.path.exists(src_first):
-                    # Si es DICOM principal, intentamos convertir una vista previa JPG para compatibilidad del sistema
                     ext_first = os.path.splitext(src_first)[1].lower()
                     if ext_first == ".dcm":
                         img_prev = cargar_imagen_general(src_first)
@@ -742,7 +742,7 @@ with tab_nuevo:
             df_nuevo.to_excel(path_excel, index=False, header=False)
 
             st.success(
-                f"✅ ¡Estudio (con soporte DICOM) para {p_nombre} {p_apellido} guardado correctamente!"
+                f"✅ ¡Estudio y secuencia DICOM para {p_nombre} {p_apellido} guardados correctamente!"
             )
 
             with open(path_excel, "rb") as file_excel:
