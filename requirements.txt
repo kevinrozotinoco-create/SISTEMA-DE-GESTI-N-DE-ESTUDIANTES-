@@ -1,6 +1,7 @@
 streamlit
 pandas
+openpyxl
 numpy
 pydicom
 Pillow
-openpyxl
+supabase>=2.0.0
