@@ -1,9 +1,12 @@
 import base64
+from io import BytesIO
 import glob
 import os
 import shutil
 import numpy as np
 import pandas as pd
+from openpyxl import Workbook
+from openpyxl.styles import Font, PatternFill, Border, Side, Alignment
 import pydicom
 import streamlit as st
 import streamlit.components.v1 as components
@@ -20,95 +23,75 @@ st.set_page_config(
 CARPETA_DATOS = "base_datos_dsa"
 os.makedirs(CARPETA_DATOS, exist_ok=True)
 
-# --- ALMACENAMIENTO PERMANENTE EN SUPABASE ---
-# Configurar en Streamlit Cloud > App settings > Secrets:
-# SUPABASE_URL = "https://TU-PROYECTO.supabase.co"
-# SUPABASE_KEY = "TU_SERVICE_ROLE_KEY"  # Mantener privada; nunca publicarla en GitHub
-# SUPABASE_BUCKET = "visualizador-dsa"
-try:
-    from supabase import create_client
-except ImportError:
-    create_client = None
 
-SUPABASE_BUCKET = "visualizador-dsa"
-_supabase = None
+# --- GENERAR UNA FICHA EXCEL CON EL DISEÑO SOLICITADO ---
+def generar_excel_formateado(ruta_excel):
+    """Crea una copia descargable de la ficha con dos columnas y estilo limpio."""
+    datos = pd.read_excel(ruta_excel, header=None, dtype=str).fillna("")
 
-def obtener_supabase():
-    global _supabase
-    if _supabase is not None:
-        return _supabase
-    if create_client is None:
-        return None
-    try:
-        url = st.secrets.get("SUPABASE_URL", "")
-        key = st.secrets.get("SUPABASE_KEY", "")
-        bucket = st.secrets.get("SUPABASE_BUCKET", SUPABASE_BUCKET)
-        if url and key:
-            _supabase = create_client(url, key)
-            _supabase.storage.get_bucket(bucket)
-            return _supabase
-    except Exception as exc:
-        st.warning(f"No se pudo conectar con Supabase: {exc}")
-    return None
+    # Quitar el encabezado de búsqueda y las filas de identificación duplicadas
+    # para que la ficha comience directamente con PRIMER NOMBRE, como el ejemplo.
+    if len(datos) >= 3 and str(datos.iloc[0, 0]).strip().upper() == "BÚSQUEDA DE PACIENTE POR ID":
+        datos = datos.iloc[3:].reset_index(drop=True)
 
-def _bucket():
-    cliente = obtener_supabase()
-    if cliente is None:
-        return None
-    return cliente.storage.from_(st.secrets.get("SUPABASE_BUCKET", SUPABASE_BUCKET))
+    libro = Workbook()
+    hoja = libro.active
+    hoja.title = "Ficha del paciente"
+    hoja.sheet_view.showGridLines = False
 
-def descargar_archivos_permanentes():
-    """Descarga del bucket los archivos existentes antes de cargar los pacientes."""
-    bucket = _bucket()
-    if bucket is None:
-        return
-    def recorrer(carpeta=""):
-        try:
-            elementos = bucket.list(carpeta, {"limit": 1000})
-        except Exception:
-            return
-        for item in elementos:
-            nombre = item.get("name", "")
-            if not nombre:
-                continue
-            ruta_rel = f"{carpeta}/{nombre}" if carpeta else nombre
-            if item.get("id") is None and not item.get("metadata"):
-                recorrer(ruta_rel)
-                continue
-            destino = os.path.join(CARPETA_DATOS, ruta_rel)
-            if os.path.exists(destino):
-                continue
-            try:
-                contenido = bucket.download(ruta_rel)
-                os.makedirs(os.path.dirname(destino), exist_ok=True)
-                with open(destino, "wb") as archivo:
-                    archivo.write(contenido)
-            except Exception as exc:
-                st.warning(f"No se pudo descargar {ruta_rel}: {exc}")
-    recorrer()
+    azul = PatternFill("solid", fgColor="D9E2F3")
+    blanco = PatternFill("solid", fgColor="FFFFFF")
+    borde = Border(
+        left=Side(style="thin", color="B7B7B7"),
+        right=Side(style="thin", color="B7B7B7"),
+        top=Side(style="thin", color="B7B7B7"),
+        bottom=Side(style="thin", color="B7B7B7"),
+    )
 
-def sincronizar_archivos_permanentes():
-    """Sube los archivos locales al bucket; conserva los que ya existen en la nube."""
-    bucket = _bucket()
-    if bucket is None:
-        return
-    for raiz, _, archivos in os.walk(CARPETA_DATOS):
-        for nombre in archivos:
-            local = os.path.join(raiz, nombre)
-            relativo = os.path.relpath(local, CARPETA_DATOS).replace(os.sep, "/")
-            try:
-                with open(local, "rb") as archivo:
-                    bucket.upload(relativo, archivo.read(), {"upsert": "true"})
-            except Exception as exc:
-                # El archivo puede existir ya; intentar reemplazarlo explícitamente.
-                try:
-                    bucket.update(relativo, open(local, "rb").read(), {"upsert": "true"})
-                except Exception:
-                    st.warning(f"No se pudo guardar {relativo} en Supabase: {exc}")
+    for indice, fila in datos.iterrows():
+        etiqueta = str(fila.iloc[0]).strip() if len(fila) > 0 else ""
+        valor = str(fila.iloc[1]).strip() if len(fila) > 1 else ""
+        if not etiqueta and not valor:
+            continue
 
-# Recuperar los archivos de la nube en cada arranque/reinicio.
-descargar_archivos_permanentes()
+        numero_fila = hoja.max_row + 1
+        celda_etiqueta = hoja.cell(row=numero_fila, column=1, value=etiqueta)
+        celda_valor = hoja.cell(row=numero_fila, column=2, value=valor)
 
+        celda_etiqueta.fill = azul
+        celda_valor.fill = blanco
+        for celda in (celda_etiqueta, celda_valor):
+            celda.border = borde
+            celda.alignment = Alignment(
+                vertical="center",
+                horizontal="left",
+                wrap_text=True
+            )
+            celda.font = Font(name="Arial", size=10, color="000000")
+
+        celda_etiqueta.font = Font(
+            name="Arial", size=9, bold=True, color="000000"
+        )
+
+        # Ajustar la altura según la longitud del contenido.
+        longitud = max(len(etiqueta), len(valor))
+        hoja.row_dimensions[numero_fila].height = 30 if longitud < 55 else 42
+
+    hoja.column_dimensions["A"].width = 29
+    hoja.column_dimensions["B"].width = 72
+    hoja.freeze_panes = "A1"
+    hoja.sheet_properties.pageSetUpPr.fitToPage = True
+    hoja.page_setup.fitToWidth = 1
+    hoja.page_setup.fitToHeight = 0
+    hoja.page_setup.orientation = "portrait"
+    hoja.page_setup.paperSize = hoja.PAPERSIZE_A4
+    hoja.print_options.horizontalCentered = True
+    hoja.print_area = f"A1:B{hoja.max_row}"
+
+    salida = BytesIO()
+    libro.save(salida)
+    salida.seek(0)
+    return salida.getvalue()
 
 USUARIOS_VALIDOS = {
     "darhienn": "1995",
@@ -699,11 +682,11 @@ with tab_buscar:
                 st.divider()
                 st.subheader("📥 Ficha del Paciente")
                 if os.path.exists(p["archivo"]):
-                    with open(p["archivo"], "rb") as f_excel:
-                        nombre_archivo_excel = os.path.basename(p["archivo"])
-                        st.download_button(
+                    excel_formateado = generar_excel_formateado(p["archivo"])
+                    nombre_archivo_excel = os.path.basename(p["archivo"])
+                    st.download_button(
                             label="📥 Descargar Ficha Excel Actual",
-                            data=f_excel,
+                            data=excel_formateado,
                             file_name=nombre_archivo_excel,
                             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                             use_container_width=True,
@@ -1109,17 +1092,13 @@ with tab_nuevo:
                 f"✅ ¡Estudio y secuencia DICOM para {p_nombre} {p_apellido} guardados correctamente!"
             )
 
-            with open(path_excel, "rb") as file_excel:
-                st.download_button(
+            excel_formateado = generar_excel_formateado(path_excel)
+            st.download_button(
                     label="📥 Descargar Ficha Excel del Paciente",
-                    data=file_excel,
+                    data=excel_formateado,
                     file_name=nombre_excel,
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 )
 
             st.cache_data.clear()
-            
-
-# Sincronización final: conserva en la nube las fichas e imágenes de esta sesión.
-sincronizar_archivos_permanentes()
 
