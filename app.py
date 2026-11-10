@@ -20,6 +20,96 @@ st.set_page_config(
 CARPETA_DATOS = "base_datos_dsa"
 os.makedirs(CARPETA_DATOS, exist_ok=True)
 
+# --- ALMACENAMIENTO PERMANENTE EN SUPABASE ---
+# Configurar en Streamlit Cloud > App settings > Secrets:
+# SUPABASE_URL = "https://TU-PROYECTO.supabase.co"
+# SUPABASE_KEY = "TU_SERVICE_ROLE_KEY"  # Mantener privada; nunca publicarla en GitHub
+# SUPABASE_BUCKET = "visualizador-dsa"
+try:
+    from supabase import create_client
+except ImportError:
+    create_client = None
+
+SUPABASE_BUCKET = "visualizador-dsa"
+_supabase = None
+
+def obtener_supabase():
+    global _supabase
+    if _supabase is not None:
+        return _supabase
+    if create_client is None:
+        return None
+    try:
+        url = st.secrets.get("SUPABASE_URL", "")
+        key = st.secrets.get("SUPABASE_KEY", "")
+        bucket = st.secrets.get("SUPABASE_BUCKET", SUPABASE_BUCKET)
+        if url and key:
+            _supabase = create_client(url, key)
+            _supabase.storage.get_bucket(bucket)
+            return _supabase
+    except Exception as exc:
+        st.warning(f"No se pudo conectar con Supabase: {exc}")
+    return None
+
+def _bucket():
+    cliente = obtener_supabase()
+    if cliente is None:
+        return None
+    return cliente.storage.from_(st.secrets.get("SUPABASE_BUCKET", SUPABASE_BUCKET))
+
+def descargar_archivos_permanentes():
+    """Descarga del bucket los archivos existentes antes de cargar los pacientes."""
+    bucket = _bucket()
+    if bucket is None:
+        return
+    def recorrer(carpeta=""):
+        try:
+            elementos = bucket.list(carpeta, {"limit": 1000})
+        except Exception:
+            return
+        for item in elementos:
+            nombre = item.get("name", "")
+            if not nombre:
+                continue
+            ruta_rel = f"{carpeta}/{nombre}" if carpeta else nombre
+            if item.get("id") is None and not item.get("metadata"):
+                recorrer(ruta_rel)
+                continue
+            destino = os.path.join(CARPETA_DATOS, ruta_rel)
+            if os.path.exists(destino):
+                continue
+            try:
+                contenido = bucket.download(ruta_rel)
+                os.makedirs(os.path.dirname(destino), exist_ok=True)
+                with open(destino, "wb") as archivo:
+                    archivo.write(contenido)
+            except Exception as exc:
+                st.warning(f"No se pudo descargar {ruta_rel}: {exc}")
+    recorrer()
+
+def sincronizar_archivos_permanentes():
+    """Sube los archivos locales al bucket; conserva los que ya existen en la nube."""
+    bucket = _bucket()
+    if bucket is None:
+        return
+    for raiz, _, archivos in os.walk(CARPETA_DATOS):
+        for nombre in archivos:
+            local = os.path.join(raiz, nombre)
+            relativo = os.path.relpath(local, CARPETA_DATOS).replace(os.sep, "/")
+            try:
+                with open(local, "rb") as archivo:
+                    bucket.upload(relativo, archivo.read(), {"upsert": "true"})
+            except Exception as exc:
+                # El archivo puede existir ya; intentar reemplazarlo explícitamente.
+                try:
+                    bucket.update(relativo, open(local, "rb").read(), {"upsert": "true"})
+                except Exception:
+                    st.warning(f"No se pudo guardar {relativo} en Supabase: {exc}")
+
+# Recuperar los archivos de la nube en cada arranque/reinicio.
+descargar_archivos_permanentes()
+
+
 USUARIOS_VALIDOS = {
     "darhienn": "1995",
     "Darhienn": "1995",
@@ -1028,4 +1118,8 @@ with tab_nuevo:
                 )
 
             st.cache_data.clear()
+            
+
+# Sincronización final: conserva en la nube las fichas e imágenes de esta sesión.
+sincronizar_archivos_permanentes()
 
