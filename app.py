@@ -3,6 +3,7 @@ from io import BytesIO
 import glob
 import os
 import shutil
+import zipfile
 import numpy as np
 import pandas as pd
 from openpyxl import Workbook
@@ -19,9 +20,25 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-# Carpeta fija y persistente para almacenar todos los expedientes
-CARPETA_DATOS = "base_datos_dsa"
+# Carpeta de datos ubicada junto a app.py.
+# Así no depende de la carpeta desde la que Streamlit ejecute el programa.
+DIRECTORIO_APP = os.path.dirname(os.path.abspath(__file__))
+CARPETA_DATOS = os.path.join(DIRECTORIO_APP, "base_datos_dsa")
 os.makedirs(CARPETA_DATOS, exist_ok=True)
+
+
+def crear_respaldo_datos():
+    """Empaqueta los expedientes y las imágenes para descargarlos como copia."""
+    memoria = BytesIO()
+    with zipfile.ZipFile(memoria, "w", compression=zipfile.ZIP_DEFLATED) as respaldo:
+        for raiz, carpetas, archivos in os.walk(CARPETA_DATOS):
+            carpetas[:] = [c for c in carpetas if c != "__pycache__"]
+            for nombre in archivos:
+                ruta = os.path.join(raiz, nombre)
+                ruta_relativa = os.path.relpath(ruta, DIRECTORIO_APP)
+                respaldo.write(ruta, arcname=ruta_relativa)
+    memoria.seek(0)
+    return memoria.getvalue()
 
 
 # --- GENERAR UNA FICHA EXCEL CON EL DISEÑO SOLICITADO ---
@@ -627,6 +644,25 @@ with st.sidebar:
         st.session_state.autenticado = False
         st.session_state.usuario = None
         st.rerun()
+    st.divider()
+
+    st.caption("Copia de seguridad de pacientes e imágenes")
+    if st.button("🗜️ Preparar copia de seguridad", use_container_width=True):
+        try:
+            st.session_state["respaldo_datos_zip"] = crear_respaldo_datos()
+            st.success("Copia preparada. Descárgala para conservarla en tu equipo.")
+        except Exception as error:
+            st.error(f"No se pudo preparar la copia: {error}")
+
+    if st.session_state.get("respaldo_datos_zip"):
+        st.download_button(
+            "📥 Descargar copia de seguridad",
+            data=st.session_state["respaldo_datos_zip"],
+            file_name="respaldo_visualizador_dsa.zip",
+            mime="application/zip",
+            use_container_width=True,
+        )
+
     st.divider()
 
 tab_buscar, tab_nuevo = st.tabs(
